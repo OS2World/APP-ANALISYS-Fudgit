@@ -1,0 +1,2904 @@
+Only in src: alloc.o
+diff -cwr src.ori/chd.c src/chd.c
+*** src.ori/chd.c	Fri Jul  9 00:15:26 1993
+--- src/chd.c	Wed Jul 28 21:44:36 1993
+***************
+*** 15,26 ****
+  
+  extern char Ft_Cwd[PATH_MAXIM];
+  
+  extern int chdir (const char *);
+  extern int Ft_iolevel (void);
+  
+  int Ft_push_cwd(void)
+  {
+! #ifdef HPUX
+      if (getcwd(Path[Cwdlevel], PATH_MAXIM-1) == (char *)NULL) {
+          perror("getcwd");
+          return(ERRR);
+--- 15,32 ----
+  
+  extern char Ft_Cwd[PATH_MAXIM];
+  
++ #ifdef __EMX__
++ #include <stdlib.h>   /* _getcwd2, _chdir2 => handle drive letters */
++ #define chdir _chdir2
++ #define getcwd _getcwd2
++ #else
+  extern int chdir (const char *);
++ #endif
+  extern int Ft_iolevel (void);
+  
+  int Ft_push_cwd(void)
+  {
+! #if defined(HPUX) || defined(__EMX__)
+      if (getcwd(Path[Cwdlevel], PATH_MAXIM-1) == (char *)NULL) {
+          perror("getcwd");
+          return(ERRR);
+Only in src: chd.o
+Only in src: code.o
+diff -cwr src.ori/command.c src/command.c
+*** src.ori/command.c	Mon Jul 12 22:22:02 1993
+--- src/command.c	Sat Jul 31 03:58:12 1993
+***************
+*** 6,11 ****
+--- 6,15 ----
+  #ifndef NOSTDLIB_H
+  #include <stdlib.h>
+  #endif
++ #ifdef __EMX__
++ #define getcwd _getcwd2  /* _getcwd2, _chdir2 handle drive letters */
++ #define chdir _chdir2
++ #endif
+  #ifndef NOUNISTD_H
+  #include <unistd.h>
+  #endif
+***************
+*** 471,477 ****
+  extern int Ft_processline (char *lp);
+  extern int Ft_run_smooth (int argc, char **argv, int ndata);
+  extern int Ft_run_fft (int argc, char **argv, int dir, int ndata);
+! #ifndef HPUX
+  extern int killpg (int, int);
+  #endif
+  extern int Ft_setparam (char *name, int n);
+--- 475,481 ----
+  extern int Ft_processline (char *lp);
+  extern int Ft_run_smooth (int argc, char **argv, int ndata);
+  extern int Ft_run_fft (int argc, char **argv, int dir, int ndata);
+! #if !defined(HPUX) && !defined(__EMX__)
+  extern int killpg (int, int);
+  #endif
+  extern int Ft_setparam (char *name, int n);
+***************
+*** 582,587 ****
+--- 586,593 ----
+      return(Ft_exit(0));
+  }
+  
++ #include <process.h>
++ 
+  int Ft_exit(int val)
+  {
+      char buffer[512];
+***************
+*** 588,607 ****
+  
+      signal_off();
+      signal(SIGQUIT, SIG_IGN);
+      Ft_killplot();
+      fclose(Ft_Outprint);
+!     signal(SIGCHLD, SIG_IGN);
+      sprintf(buffer, "exec /bin/rm -f /tmp/fudgit%d*", getpid());
+      system(buffer);
+  	sprintf(buffer, "%s/%s", Ft_Home, HISTORY);
+! 	if (Ft_Interact)
+  		hl_write_history(buffer);
+      if (val == 2) {
+  	fputs("Do you know why I received that signal?\nIf not report that bug!\n\n", stderr);
+      }
+      if (val > 1) {
+  	signal(SIGTERM, SIG_IGN);
+! #ifdef HPUX
+  	kill( -getpid(), SIGTERM);
+  #else
+  	killpg(getpid(), SIGTERM);
+--- 594,626 ----
+  
+      signal_off();
+      signal(SIGQUIT, SIG_IGN);
++ #ifdef SIGCLD
++     signal(SIGCLD, SIG_IGN);
++ #else
++     signal(SIGCHLD, SIG_IGN);
++ #endif
+      Ft_killplot();
+      fclose(Ft_Outprint);
+! #ifdef __EMX__
+!     sprintf(buffer, "if exist %s*.* del %s*.*", Ft_Tmp, Ft_Tmp);
+!     {   /* convert path for DOS command processor */
+! 	char *cp=buffer;
+! 	while (*++cp) if (*cp=='/') *cp='\\';
+!     }
+! #else
+      sprintf(buffer, "exec /bin/rm -f /tmp/fudgit%d*", getpid());
++ #endif        
+      system(buffer);
+  	sprintf(buffer, "%s/%s", Ft_Home, HISTORY);
+! 	if (Ft_Interact) {
+  		hl_write_history(buffer);
++ 	}
+      if (val == 2) {
+  	fputs("Do you know why I received that signal?\nIf not report that bug!\n\n", stderr);
+      }
+      if (val > 1) {
+  	signal(SIGTERM, SIG_IGN);
+! #if defined(HPUX) || defined(__EMX__)
+  	kill( -getpid(), SIGTERM);
+  #else
+  	killpg(getpid(), SIGTERM);
+***************
+*** 1152,1158 ****
+  	    return(usage(cmp));
+      }
+  
+! #ifdef HPUX   /* HPUX  uses getcwd()  */
+      if (getcwd(Ft_Cwd, PATH_MAXIM-1) == (char *) NULL) {
+  	perror("getcwd");
+  #else
+--- 1171,1177 ----
+  	    return(usage(cmp));
+      }
+  
+! #if defined(HPUX) || defined(__EMX__)   /* HPUX  uses getcwd()  */
+      if (getcwd(Ft_Cwd, PATH_MAXIM-1) == (char *) NULL) {
+  	perror("getcwd");
+  #else
+***************
+*** 1240,1252 ****
+--- 1259,1279 ----
+  
+      signal_off();
+      if (argc == 1) {
++ #ifdef __EMX__
++ 	val = system("dir");
++ #else
+  	val = system("exec ls -FC");
++ #endif
+      }
+      else {
+  	char *cp;
+  
+  	cp = line + strlen(argv[0]) + 1;
++ #ifdef __EMX__
++ 	sprintf(fromline, "dir %s", cp);
++ #else
+  	sprintf(fromline, "exec ls -FC %s", cp);
++ #endif
+  	val = system(fromline);
+      }
+      signal_on();
+***************
+*** 1404,1410 ****
+--- 1431,1441 ----
+  			fputc('\n', stderr);
+  	    break;
+  	case 1:
++ #ifdef __EMX__
++ 	    sprintf(fromline, "%s", Ft_Shell);
++ #else
+  	    sprintf(fromline, "exec %s", Ft_Shell);
++ #endif
+  	    val = system(fromline);
+  	    break;
+  	default:
+***************
+*** 2590,2596 ****
+--- 2621,2629 ----
+  {
+      signal(SIGINT, Ft_catcher);
+      signal(SIGHUP, Ft_catcher);
++ #ifdef SIGTSTP    
+      signal(SIGTSTP, Ft_catcher);
++ #endif
+  }
+  
+  static void signal_off(void)
+***************
+*** 2597,2603 ****
+--- 2630,2638 ----
+  {
+      signal(SIGINT, SIG_DFL);
+      signal(SIGHUP, SIG_DFL);
++ #ifdef SIGTSTP    
+      signal(SIGTSTP, SIG_DFL);
++ #endif
+  }
+  
+  /* #if defined(sgi) || defined(sparc) || defined(sun) */
+Only in src: command.o
+Only in src/dld: define.o
+diff -cwr src.ori/dld/defs.h src/dld/defs.h
+*** src.ori/dld/defs.h	Fri Jul  9 00:15:36 1993
+--- src/dld/defs.h	Thu Jul 29 21:25:00 1993
+***************
+*** 19,25 ****
+--- 19,30 ----
+     later version. */
+  
+  
++ #ifdef __EMX__
++ #include <a_out.h>  /* DOS naming! */
++ #define N_COMM 0   /* should be okay (no Fortran) */
++ #else
+  #include <a.out.h>
++ #endif
+  #include <ar.h>
+  #include <stdio.h>
+  #include <sys/types.h>
+diff -cwr src.ori/dld/dl/dl.h src/dld/dl/dl.h
+*** src.ori/dld/dl/dl.h	Fri Jul  9 00:15:36 1993
+--- src/dld/dl/dl.h	Thu Jul 29 21:34:40 1993
+***************
+*** 25,31 ****
+--- 25,36 ----
+  ** Definitions of dl library modules.
+  */
+  
++ #ifdef __EMX__
++ #include <a_out.h>
++ #define n_name n_un.n_name   /* I know, ugly... */
++ #else
+  #include <nlist.h>
++ #endif
+  
+  #ifdef __STDC__
+  #define _PROTO(x) x
+Only in src/dld/dl: dl_error.o
+Only in src/dld/dl: dl_findl.o
+diff -cwr src.ori/dld/dl/dl_getbi.c src/dld/dl/dl_getbi.c
+*** src.ori/dld/dl/dl_getbi.c	Fri Jul  9 00:15:38 1993
+--- src/dld/dl/dl_getbi.c	Fri Jul 30 02:27:04 1993
+***************
+*** 62,78 ****
+--- 62,98 ----
+  		D(printf("binary includes slash: %s\n", argv0));
+  		return argv0;
+  	}
++ #ifdef __EMX__
++   /* aci 30-Jul-93: Allow for differences in DOS names */
++ 	if (strchr(argv0, '\\') != NULL) {
++ 		D(printf("binary includes backslash: %s\n", argv0));
++ 		return argv0;
++ 	}
++ 	if (strchr(argv0, ':') != NULL) {
++ 		D(printf("binary includes colon: %s\n", argv0));
++ 		return argv0;
++ 	}
++ #endif
+  	path = getenv("PATH");
+  	if (path == NULL)
+  		path = DEF_PATH;
+  	p = q = path;
+  	for (;;) {
++ #ifdef __EMX__
++ 		while (*q && *q != ';')  /* DOS path separator */
++ #else
+  		while (*q && *q != ':')
++ #endif
+  			q++;
+  		i = q-p;
+  		strncpy(buf, p, i);
++ #ifdef __EMX__
++ 		if (q > p && q[-1] != '\\')
++ 			buf[i++] = '\\';
++ #else
+  		if (q > p && q[-1] != '/')
+  			buf[i++] = '/';
++ #endif
+  		strcpy(buf+i, argv0);
+  		if (stat(buf, &st) >= 0) {
+  			if (S_ISREG(st.st_mode) &&
+Only in src/dld/dl: dl_getbi.o
+Only in src/dld/dl: dl_loadm.o
+diff -cwr src.ori/dld/dl/makefile src/dld/dl/makefile
+*** src.ori/dld/dl/makefile	Fri Jul  9 00:15:36 1993
+--- src/dld/dl/makefile	Fri Jul 30 02:48:52 1993
+***************
+*** 1,18 ****
+  # 
+  DLDDIR = ../
+  LIBDL = ../libdl.a
+! OBJS = dl_loadmod.o dl_getbinary.o dl_findlibs.o dl_error.o strerror.o
+! CFLAGS = -g -I$(DLDDIR)
+  CC = gcc
+  
+  $(LIBDL): $(OBJS)
+! 	rm -f $(LIBDL)
+  	ar clq $(LIBDL) $(OBJS)
+  	ranlib $(LIBDL)
+  
+  $(OBJS): dl.h
+  
+! dl_loadmod.o: $(DLDDIR)/dld.h
+  
+  clean:
+  	-rm -f *.o core $(LIBDL)
+--- 1,19 ----
+  # 
+  DLDDIR = ../
+  LIBDL = ../libdl.a
+! OBJS = dl_loadm.o dl_getbi.o dl_findl.o dl_error.o strerror.o
+! CFLAGS = -I$(DLDDIR) #-g
+  CC = gcc
+  
+  $(LIBDL): $(OBJS)
+! #        rm -f $(LIBDL)
+! 	del $(LIBDL)
+  	ar clq $(LIBDL) $(OBJS)
+  	ranlib $(LIBDL)
+  
+  $(OBJS): dl.h
+  
+! dl_loadm.o: $(DLDDIR)/dld.h
+  
+  clean:
+  	-rm -f *.o core $(LIBDL)
+Only in src/dld/dl: strerror.o
+diff -cwr src.ori/dld/dld.c src/dld/dld.c
+*** src.ori/dld/dld.c	Fri Jul  9 00:15:40 1993
+--- src/dld/dld.c	Fri Jul 30 10:34:16 1993
+***************
+*** 38,43 ****
+--- 38,46 ----
+     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.  */
+  
+  #include "defs.h"
++ #ifdef __EMX__   /* for _getdrive, _chdrive nonsense */
++ #include <stdlib.h>
++ #endif
+  
+  #if 0
+  /*
+***************
+*** 369,375 ****
+--- 372,396 ----
+      
+      if (input_file) file_close ();
+      
++ #ifdef __EMX__
++     /* aci 30-Jul-93: open() doesn't seem to like drive letters
++ 	in the path, at least not in binary mode.  Go figure! */
++     {
++       char cur_drive = _getdrive();
++       char *temp=strchr(entry->filename,':');
++       if (temp) {
++         _chdrive(temp[-1]);  /* login drive from path */
++ 	++temp;
++       }
++       else temp=entry->filename;
++ 
++       /* turn off text file processing */
++       desc = open (temp, O_RDONLY|O_BINARY, 0);
++       _chdrive(cur_drive);
++     }
++ #else
+      desc = open (entry->filename, O_RDONLY, 0);
++ #endif
+      
+      if (desc > 0) {
+  	input_file = entry;
+***************
+*** 1946,1951 ****
+--- 1967,2011 ----
+      }
+      _dld_latest_entry = make_entry (myname);
+      desc = file_open (_dld_latest_entry);
++     
++ #ifdef __EMX__
++ #ifdef DEBUG
++ #define D(x) x
++ #else
++ #define D(x)
++ #endif
++     /* [aci 30-Jul-93]
++      *   Allow for miscellaneous headers (ie. emx or emxl, etc.) being
++      *   "bound" to the front of the a.out file (for the main program
++      *   only).  In practice, this means there may be some number of
++      *   "garbage" pages before we get to the a.out section, but we can
++      *   be sure the starting offset will be page-aligned (at least,
++      *   taking the page size to be 1K). So, search for a page starting
++      *   with the magic number for a demand-loaded executable (ZMAGIC).
++      */
++     {
++ 	    register int len;
++ 	    int magicnum;
++ 	    struct file_entry *entry=_dld_latest_entry;
++ 	    
++ 	    len = read (desc, &magicnum, sizeof magicnum);
++ 	    if (len != sizeof magicnum)
++ 		fatal (DLD_EBADHEADER);
++ 
++ 	    while (N_MAGIC(*(struct exec *)&magicnum) != ZMAGIC) {
++ 		entry->starting_offset += 0x400;
++ 		lseek (desc, entry->starting_offset, 0);
++ 		len = read (desc, &magicnum, sizeof magicnum);
++ 		D(fprintf(stderr,"(dld_init: %s -> @%x = %x)\n",
++ 			myname, entry->starting_offset, magicnum));
++ 		if (len != sizeof magicnum)
++ 		    fatal (DLD_EBADHEADER);
++ 	    }
++ 	    /* back up to the start of a.out section */
++ 	    lseek (desc, entry->starting_offset, 0);
++     }
++ #endif
++ 
+  #ifdef atarist
+      st_read_header (desc, _dld_latest_entry);
+  #endif /* atarist */
+Only in src/dld: dld.o
+Only in src/dld: error.o
+Only in src/dld: find_exe.o
+Only in src/dld: get_func.o
+Only in src/dld: get_symb.o
+Only in src/dld: libdl.a
+Only in src/dld: libdld.a
+Only in src/dld: list_und.o
+diff -cwr src.ori/dld/makefile src/dld/makefile
+*** src.ori/dld/makefile	Fri Jul  9 00:15:36 1993
+--- src/dld/makefile	Fri Jul 30 02:47:04 1993
+***************
+*** 1,13 ****
+  ARCHIVE = libdld.a
+! LIBS = dld.o find_exec.o define.o get_func.o get_symbol.o \
+! 	list_undef.o mk_dummy.o ref.o ul_file.o ul_symbol.o \
+  	remove.o error.o
+  INCLUDE = dld.h defs.h
+  CC= gcc
+! CFLAGS = -g -I.
+  
+  $(ARCHIVE): $(LIBS) $(INCLUDES)
+! 	rm -f $(ARCHIVE)
+  	ar clq $(ARCHIVE) $(LIBS)
+  	ranlib $(ARCHIVE)
+  
+--- 1,14 ----
+  ARCHIVE = libdld.a
+! LIBS = dld.o find_exe.o define.o get_func.o get_symb.o \
+! 	list_und.o mk_dummy.o ref.o ul_file.o ul_symbo.o \
+  	remove.o error.o
+  INCLUDE = dld.h defs.h
+  CC= gcc
+! CFLAGS = -I. #-g
+  
+  $(ARCHIVE): $(LIBS) $(INCLUDES)
+! #        rm -f $(ARCHIVE)
+! 	del $(ARCHIVE)
+  	ar clq $(ARCHIVE) $(LIBS)
+  	ranlib $(ARCHIVE)
+  
+Only in src/dld: mk_dummy.o
+Only in src/dld: ref.o
+Only in src/dld: remove.o
+Only in src/dld: ul_file.o
+Only in src/dld: ul_symbo.o
+diff -cwr src.ori/extramat.c src/extramat.c
+*** src.ori/extramat.c	Fri Jul  9 00:15:42 1993
+--- src/extramat.c	Fri Jul 30 01:42:28 1993
+***************
+*** 1,7 ****
+  #include  <math.h>
+  
+- extern int errno;
+- 
+  /* This math function file is to make up for deficiencies in some
+   * library math functions.  The following are missing for some vendors:
+   *
+--- 1,7 ----
+  #include  <math.h>
++ #include <float.h>
++ #include <errno.h>
+  
+  /* This math function file is to make up for deficiencies in some
+   * library math functions.  The following are missing for some vendors:
+   *
+***************
+*** 12,22 ****
+--- 12,50 ----
+   *   (double) rint(  double )   nearest rounded integer
+   *   (double) trunc( double )   truncated integer
+   *
++  * [aci 28-Jul-93]  Here are some additional functions taken from
++  *	release 3.4 of gnuplot (see terms in comments below).
++  *      To use these features, set the appropriate #defines:
++  *         NOBESSEL to get j0, j1, y0, y1 (sorry, jn, yn not available)
++  *         NOGAMMA to get gamma, lgamma, igamma, ibeta
++  *         NOGAMMA+INCL_STATS to get erf, erfc, normal, invnormal, inverf
++  *         NORAND to get ranf (a pseudo random number generator)
++  *
++  *   (double) y0( double )      Bessel functions
++  *   (double) y1( double )
++  *   (double) j0( double )
++  *   (double) j1( double )
++  *   (double) gamma( double )   Gamma and log(Gamma) functions
++  *   (double) lgamma( double )
++  *   (double) igamma( double double )
++  *   (double) ibeta( double, double, double )
++  *   (double) normal( double )  Normal distribution functions
++  *   (double) erf( double )
++  *   (double) erfc( double )
++  *   (double) invnormal( double )
++  *   (double) inverf( double )
++  *   (double) ranf( long )      Simple but decent pseudo RNG
++  *
+   * For Linux, it's rint, trunc, cbrt, gamma.
++  * For EMX/GCC, it's gamma, inverse hyperbolics.
+   *
+   * Some versions of SunOS lack trunc().
+   */
+  
++ #if 0
++    /* [aci 28-Jul-93]
++     *    Use more accurate functions from gnuplot, see below.
++     */
+  #ifdef NOGAMMA
+  double gamma(double x)
+  {
+***************
+*** 44,49 ****
+--- 72,78 ----
+      }
+  }
+  #endif
++ #endif  /* 0 */
+  
+  #ifdef NORINT
+  double rint(double x)
+***************
+*** 110,115 ****
+--- 139,1322 ----
+  	val = 0.5 * log((1.0 + x)/(1.0 - x));
+  	return(val);
+  }
++ #endif
++ 
++ #ifdef NOGAMMA
++ 
++ /*
++ static char *RCSid = "$Id: specfun.c%v 3.38.2.119 1993/04/25 23:59:40 woo Exp woo $";
++ */
++ /** GNUPLOT - specfun.c
++  *
++  * Copyright (C) 1986 - 1993   Thomas Williams, Colin Kelley,
++  *                                              Jos van der Woude
++  *
++  * Permission to use, copy, and distribute this software and its
++  * documentation for any purpose with or without fee is hereby granted,
++  * provided that the above copyright notice appear in all copies and
++  * that both that copyright notice and this permission notice appear
++  * in supporting documentation.
++  *
++  * Permission to modify the software is granted, but not the right to
++  * distribute the modified code.  Modifications are to be distributed
++  * as patches to released version.
++  *
++  * This software is provided "as is" without express or implied warranty.
++  *
++  *
++  * AUTHORS
++  *
++  *   Original Software:
++  *   Jos van der Woude, jvdwoude@hut.nl
++  *
++  * There is a mailing list for gnuplot users. Note, however, that the
++  * newsgroup 
++  *      comp.graphics.gnuplot 
++  * is identical to the mailing list (they
++  * both carry the same set of messages). We prefer that you read the
++  * messages through that newsgroup, to subscribing to the mailing list.
++  * (If you can read that newsgroup, and are already on the mailing list,
++  * please send a message info-gnuplot-request@dartmouth.edu, asking to be
++  * removed from the mailing list.)
++  *
++  * The address for mailing to list members is
++  *         info-gnuplot@dartmouth.edu
++  * and for mailing administrative requests is 
++  *         info-gnuplot-request@dartmouth.edu
++  * The mailing list for bug reports is 
++  *         bug-gnuplot@dartmouth.edu
++  * The list of those interested in beta-test versions is
++  *         info-gnuplot-beta@dartmouth.edu
++  */
++ 
++ #define ITMAX   100
++ #ifdef DBL_EPSILON
++ #define MACHEPS DBL_EPSILON /* 1.0E-08 */
++ #else
++ #define MACHEPS 1.0E-08
++ #endif
++ #ifdef DBL_MIN_EXP
++ #define MINEXP  DBL_MIN_EXP /* -88.0 */
++ #else
++ #define MINEXP  -88.0
++ #endif
++ #ifdef DBL_MAX
++ #define OFLOW   DBL_MAX /* 1.0E+37 */
++ #else
++ #define OFLOW   1.0E+37
++ #endif
++ #ifdef DBL_MAX_10_EXP
++ #define XBIG    DBL_MAX_10_EXP /* 2.55E+305 */
++ #else
++ #define XBIG    2.55E+305
++ #endif
++ 
++ /*
++  * Mathematical constants
++  */
++ #define LNPI 1.14472988584940016
++ #define LNSQRT2PI 0.9189385332046727
++ #define PI 3.14159265358979323846
++ #define PNT68 0.6796875
++ #define SQRTPI 0.9189385332046727417803297
++ #define SQRT_TWO 1.41421356237309504880168872420969809   /* JG */
++ 
++ #ifndef min /* GCC ST uses inline functions */
++ #define min(a,b) ((a) < (b) ? (a) : (b))
++ #endif
+  
++ /* Global variables, not visible outside this file */
++ static int signgam = 0;
++ #ifdef IEEE_NAN
++   /* NaN in IEEE format, if supported.  Not sure about the
++      endianness, but this works for 80x87 (little-endian). */
++ static union { short words[4]; double val; } _NaN = {{0,0,0,0x7ff8}};
++ #define NaN _NaN.val
++ #else
++   /* The more typical pre-ANSI return value. */
++ static double NaN = HUGE;
+  #endif
+  
++ /* Local function declarations, not visible outside this file */
++ static double confrac(double,double,double);
++ 
++ /* Provide GAMMA function for those who do not already have one */
++ static double lgamneg(double);
++ static double lgampos(double);
++ 
++ /**
++  * from statlib, Thu Jan 23 15:02:27 EST 1992 ***
++  *
++  * This file contains two algorithms for the logarithm of the gamma function.
++  * Algorithm AS 245 is the faster (but longer) and gives an accuracy of about
++  * 10-12 significant decimal digits except for small regions around X = 1 and
++  * X = 2, where the function goes to zero.
++  * The second algorithm is not part of the AS algorithms.   It is slower but
++  * gives 14 or more significant decimal digits accuracy, except around X = 1
++  * and X = 2.   The Lanczos series from which this algorithm is derived is
++  * interesting in that it is a convergent series approximation for the gamma
++  * function, whereas the familiar series due to De Moivre (and usually wrongly
++  * called Stirling's approximation) is only an asymptotic approximation, as
++  * is the true and preferable approximation due to Stirling.
++  * 
++  * Uses Lanczos-type approximation to ln(gamma) for z > 0. Reference: Lanczos,
++  * C. 'A precision approximation of the gamma function', J. SIAM Numer.
++  * Anal., B, 1, 86-96, 1964. Accuracy: About 14 significant digits except for
++  * small regions in the vicinity of 1 and 2.
++  * 
++  * Programmer: Alan Miller CSIRO Division of Mathematics & Statistics
++  * 
++  * Latest revision - 17 April 1988
++  * 
++  * Additions: Translated from fortran to C, code added to handle values z < 0.
++  * The global variable signgam contains the sign of the gamma function.
++  * 
++  * IMPORTANT: The signgam variable contains garbage until AFTER the call to
++  * lngamma().
++  * 
++  * Permission granted to distribute freely for non-commercial purposes only
++  * Copyright (c) 1992 Jos van der Woude, jvdwoude@hut.nl
++  */
++ 
++ /******************
++   Local data, not visible outside this file 
++ static double   a[] =
++ {
++     0.9999999999995183E+00,
++     0.6765203681218835E+03,
++     -.1259139216722289E+04,
++     0.7713234287757674E+03,
++     -.1766150291498386E+03,
++     0.1250734324009056E+02,
++     -.1385710331296526E+00,
++     0.9934937113930748E-05,
++     0.1659470187408462E-06,
++ };   ***************************/
++ 
++ /* from Ray Toy */
++ static long double a[] = {
++ 	.99999999999980993227684700473478296744476168282198,
++      676.52036812188509856700919044401903816411251975244084,
++    -1259.13921672240287047156078755282840836424300664868028,
++      771.32342877765307884865282588943070775227268469602500,
++     -176.61502916214059906584551353999392943274507608117860,
++       12.50734327868690481445893685327104972970563021816420,
++        -.13857109526572011689554706984971501358032683492780,
++ 	.00000998436957801957085956266828104544089848531228,
++ 	.00000015056327351493115583383579667028994545044040,
++ };
++ 
++ static double   lgamneg(double z)
++ {
++     double          tmp;
++ 
++     /* Use reflection formula, then call lgampos() */
++     tmp = sin(z * PI);
++ 
++     if (fabs(tmp) < MACHEPS) {
++ 	tmp = 0.0;
++     } else if (tmp < 0.0) {
++ 	tmp = -tmp;
++ 	signgam = -1;
++     }
++     return LNPI - lgampos(1.0 - z) - log(tmp);
++ 
++ }
++ 
++ static double   lgampos(double z)
++ {
++     long double          sum;
++     long double          tmp;
++     int             i;
++ 
++     sum = a[0];
++     for (i = 1, tmp = z; i < 9; i++) {
++ 	sum += a[i] / tmp;
++ 	tmp++;
++     }
++ 
++     return log(sum) + LNSQRT2PI - z - 6.5 + (z - 0.5) * log(z + 6.5);
++ }
++ 
++ /*
++  *  [aci 13-Jul-93]  Renamed from lngamma() to lgamma() and made public.
++  */
++ double
++ lgamma(double z)
++ {
++     signgam = 1.0;
++ 
++     if (z <= 0.0)
++ 	return lgamneg(z);
++     else
++ 	return lgampos(z);
++ }
++ 
++ double
++ gamma(double x)
++ {
++ 	double y;
++ 	y = lgamma(x);
++ 	if (y > 88.0) {
++ 		errno = ERANGE;
++ 		return HUGE;
++ 	}
++ 	return signgam * exp(y);
++ }
++ 
++ /** ibeta.c
++  *
++  *   DESCRIB   Approximate the incomplete beta function Ix(a, b).
++  *
++  *                           _
++  *                          |(a + b)     /x  (a-1)         (b-1)
++  *             Ix(a, b) = -_-------_--- * |  t     * (1 - t)     dt (a,b > 0)
++  *                        |(a) * |(b)   /0
++  *
++  *
++  *
++  *   CALL      p = ibeta(a, b, x)
++  *
++  *             double    a    > 0
++  *             double    b    > 0
++  *             double    x    [0, 1]
++  *
++  *   WARNING   none
++  *
++  *   RETURN    double    p    [0, 1]
++  *                            -1.0 on error condition
++  *
++  *   XREF      lngamma()
++  *
++  *   BUGS      none
++  *
++  *   REFERENCE The continued fraction expansion as given by
++  *             Abramowitz and Stegun (1964) is used.
++  *
++  * Permission granted to distribute freely for non-commercial purposes only
++  * Copyright (c) 1992 Jos van der Woude, jvdwoude@hut.nl
++  */
++ 
++ double
++ ibeta(double a, double b, double x)
++ {
++     /* Test for admissibility of arguments */
++     if (a <= 0.0 || b <= 0.0 || x < 0.0 || x > 1.0) {
++ 	errno=EDOM;
++ 	return NaN;
++     }
++ 
++     /* If x equals 0 or 1, return x as prob */
++     if (x == 0.0 || x == 1.0)
++ 	return x;
++ 
++     /* Swap a, b if necessarry for more efficient evaluation */
++     return a < x * (a + b) ? 1.0 - confrac(b, a, 1.0 - x) : confrac(a, b, x);
++ }
++ 
++ static double   confrac(double a, double b, double x)
++ {
++     double          Alo = 0.0;
++     double          Ahi;
++     double          Aev;
++     double          Aod;
++     double          Blo = 1.0;
++     double          Bhi = 1.0;
++     double          Bod = 1.0;
++     double          Bev = 1.0;
++     double          f;
++     double          fold;
++     double          Apb = a + b;
++     double          d;
++     int             i;
++     int             j;
++ 
++     /* Set up continued fraction expansion evaluation. */
++     Ahi = exp(lgamma(Apb) + a * log(x) + b * log(1.0 - x) -
++ 	      lgamma(a + 1.0) - lgamma(b));
++ 
++     /*
++      * Continued fraction loop begins here. Evaluation continues until
++      * maximum iterations are exceeded, or convergence achieved.
++      */
++     for (i = 0, j = 1, f = Ahi; i <= ITMAX; i++, j++) {
++ 	d = a + j + i;
++ 	Aev = -(a + i) * (Apb + i) * x / d / (d - 1.0);
++ 	Aod = j * (b - j) * x / d / (d + 1.0);
++ 	Alo = Bev * Ahi + Aev * Alo;
++ 	Blo = Bev * Bhi + Aev * Blo;
++ 	Ahi = Bod * Alo + Aod * Ahi;
++ 	Bhi = Bod * Blo + Aod * Bhi;
++ 
++ 	if (fabs(Bhi) < MACHEPS)
++ 	    Bhi = 0.0;
++ 
++ 	if (Bhi != 0.0) {
++ 	    fold = f;
++ 	    f = Ahi / Bhi;
++ 	    if (fabs(f - fold) < fabs(f) * MACHEPS)
++ 		return f;
++ 	}
++     }
++ 
++     errno=ERANGE;
++     return HUGE;
++ }
++ 
++ /** igamma.c
++  *
++  *   DESCRIB   Approximate the incomplete gamma function P(a, x).
++  *
++  *                         1     /x  -t   (a-1)
++  *             P(a, x) = -_--- * |  e  * t     dt      (a > 0)
++  *                       |(a)   /0
++  *
++  *   CALL      p = igamma(a, x)
++  *
++  *             double    a    >  0
++  *             double    x    >= 0
++  *
++  *   WARNING   none
++  *
++  *   RETURN    double    p    [0, 1]
++  *                            -1.0 on error condition
++  *
++  *   XREF      lngamma()
++  *
++  *   BUGS      Values 0 <= x <= 1 may lead to inaccurate results.
++  *
++  *   REFERENCE ALGORITHM AS239  APPL. STATIST. (1988) VOL. 37, NO. 3
++  *
++  * Permission granted to distribute freely for non-commercial purposes only
++  * Copyright (c) 1992 Jos van der Woude, jvdwoude@hut.nl
++  */
++ 
++ double
++ igamma(double a, double x)
++ {
++     double          arg;
++     double          aa;
++     double          an;
++     double          b;
++     int             i;
++     /*static*/ double   pn1, pn2, pn3, pn4, pn5, pn6;
++ 
++     /* Check that we have valid values for a and x */
++     if (x < 0.0 || a <= 0.0) {
++ 	errno=EDOM;
++ 	return NaN;
++     }
++ 
++     /* Deal with special cases */
++     if (x == 0.0)
++ 	return 0.0;
++     if (x > XBIG)
++ 	return 1.0;
++ 
++     /* Check value of factor arg */
++     arg = a * log(x) - x - lgamma(a + 1.0);
++     if (arg < MINEXP) {
++ 	errno=ERANGE;
++ 	return 0.0;
++     }
++     arg = exp(arg);
++ 
++     /* Choose infinite series or continued fraction. */
++ 
++     if ((x > 1.0) && (x >= a + 2.0)) {
++ 	/* Use a continued fraction expansion */
++ 
++ 	double          rn;
++ 	double          rnold;
++ 
++ 	aa = 1.0 - a;
++ 	b = aa + x + 1.0;
++ 	pn1 = 1.0;
++ 	pn2 = x;
++ 	pn3 = x + 1.0;
++ 	pn4 = x * b;
++ 	rnold = pn3 / pn4;
++ 
++ 	for (i = 1; i <= ITMAX; i++) {
++ 
++ 	    aa++;
++ 	    b += 2.0;
++ 	    an = aa * (double) i;
++ 
++ 	    pn5 = b * pn3 - an * pn1;
++ 	    pn6 = b * pn4 - an * pn2;
++ 
++ 	    if (pn6 != 0.0) {
++ 
++ 		rn = pn5 / pn6;
++ 		if (fabs(rnold - rn) <= min(MACHEPS, MACHEPS * rn))
++ 		    return 1.0 - arg * rn * a;
++ 
++ 		rnold = rn;
++ 	    }
++ 	    pn1 = pn3;
++ 	    pn2 = pn4;
++ 	    pn3 = pn5;
++ 	    pn4 = pn6;
++ 
++ 	    /* Re-scale terms in continued fraction if terms are large */
++ 	    if (fabs(pn5) >= OFLOW) {
++ 
++ 		pn1 /= OFLOW;
++ 		pn2 /= OFLOW;
++ 		pn3 /= OFLOW;
++ 		pn4 /= OFLOW;
++ 	    }
++ 	}
++     } else {
++ 	/* Use Pearson's series expansion. */
++ 
++ 	for (i = 0, aa = a, an = b = 1.0; i <= ITMAX; i++) {
++ 
++ 	    aa++;
++ 	    an *= x / aa;
++ 	    b += an;
++ 	    if (an < b * MACHEPS)
++ 		return arg * b;
++ 	}
++     }
++     errno=ERANGE;
++     return HUGE;
++ }
++ 
++ #ifdef INCL_STATS
++ 
++ double
++ erf(double x)
++ {
++ 	return (x < 0.0) ? -igamma(0.5, x * x) : igamma(0.5, x * x);
++ }
++ 
++ double
++ erfc(double x)
++ {
++ 	return (x < 0.0) ? 1.0 + igamma(0.5, x * x) : 1.0 - igamma(0.5, x * x);
++ }
++ 
++ /* ----------------------------------------------------------------
++    Following to specfun.c made by John Grosh (jgrosh@arl.mil)
++    on 28 OCT 1992.
++    ---------------------------------------------------------------- */
++ 
++ double
++ normal(double x)      /* Normal or Gaussian Probability Function */
++ {
++ 
++ 	/* ref. Abramowitz and Stegun 1964, "Handbook of Mathematical 
++ 	   Functions", Applied Mathematics Series, vol 55,
++ 	   Chapter 26, page 934, Eqn. 26.2.29 and Jos van der Woude 
++ 	   code found above */
++ 	x = 0.5 * SQRT_TWO * x;
++ 	return 0.5 * (1.0 + (x < 0.0 ? -igamma(0.5, x * x) : igamma(0.5, x * x)));
++ }
++ 
++ double 
++ invnormal(double p)
++ {
++ 	/* 
++ 	   Source: This routine was derived (using f2c) from the 
++ 		   FORTRAN subroutine MDNRIS found in 
++ 		   ACM Algorithm 602 obtained from netlib.
++ 
++ 		   MDNRIS code contains the 1978 Copyright 
++ 		   by IMSL, INC. .  Since MDNRIS has been 
++ 		   submitted to netlib it may be used with 
++ 		   the restriction that it may only be 
++ 		   used for noncommercial purposes and that
++ 		   IMSL be acknowledged as the copyright-holder
++ 		   of the code.
++ 	*/
++ 
++ 	/* Initialized data */
++ 	static double eps = 1e-10;
++ 	static double g0 = 1.851159e-4;
++ 	static double g1 = -.002028152;
++ 	static double g2 = -.1498384;
++ 	static double g3 = .01078639;
++ 	static double h0 = .09952975;
++ 	static double h1 = .5211733;
++ 	static double h2 = -.06888301;
++ 	static double sqrt2 = 1.414213562373095;
++ 
++ 	/* Local variables */
++ 	/*static*/ double a, w, x;
++ 	/*static*/ double sd, wi, sn, y;
++ 
++ 	double inverf();
++ 
++ 	if (p<=0 || p>=1) {
++ 		errno=EDOM;
++ 		return NaN;
++ 	}
++ 	/* Note: 0.0 < p < 1.0 */
++ 
++ 	/* p too small, compute y directly */
++ 	if (p <= eps) {
++ 		a = p + p;
++ 		w = sqrt(-(double)log(a + (a - a * a)));
++ 
++ 		/* use a rational function in 1.0 / w */
++ 		wi = 1.0 / w;
++ 		sn = ((g3 * wi + g2) * wi + g1) * wi;
++ 		sd = ((wi + h2) * wi + h1) * wi + h0;
++ 		y = w + w * (g0 + sn / sd);
++ 		y = -y * sqrt2;
++ 	} else {
++ 		x = 1.0 - (p + p);
++ 		y = inverf(x);
++ 		y = -sqrt2 * y;
++ 	}
++ 	return(y);
++ } 
++ 
++ 
++ double 
++ inverf(double p)
++ {
++ 	/* 
++ 	   Source: This routine was derived (using f2c) from the 
++ 		   FORTRAN subroutine MERFI found in 
++ 		   ACM Algorithm 602 obtained from netlib.
++ 
++ 		   MDNRIS code contains the 1978 Copyright 
++ 		   by IMSL, INC. .  Since MERFI has been 
++ 		   submitted to netlib, it may be used with 
++ 		   the restriction that it may only be 
++ 		   used for noncommercial purposes and that
++ 		   IMSL be acknowledged as the copyright-holder
++ 		   of the code.
++ 	*/
++ 
++ 	/* Initialized data */
++ 	static double a1 = -.5751703;
++ 	static double a2 = -1.896513;
++ 	static double a3 = -.05496261;
++ 	static double b0 = -.113773;
++ 	static double b1 = -3.293474;
++ 	static double b2 = -2.374996;
++ 	static double b3 = -1.187515;
++ 	static double c0 = -.1146666;
++ 	static double c1 = -.1314774;
++ 	static double c2 = -.2368201;
++ 	static double c3 = .05073975;
++ 	static double d0 = -44.27977;
++ 	static double d1 = 21.98546;
++ 	static double d2 = -7.586103;
++ 	static double e0 = -.05668422;
++ 	static double e1 = .3937021;
++ 	static double e2 = -.3166501;
++ 	static double e3 = .06208963;
++ 	static double f0 = -6.266786;
++ 	static double f1 = 4.666263;
++ 	static double f2 = -2.962883;
++ 	static double g0 = 1.851159e-4;
++ 	static double g1 = -.002028152;
++ 	static double g2 = -.1498384;
++ 	static double g3 = .01078639;
++ 	static double h0 = .09952975;
++ 	static double h1 = .5211733;
++ 	static double h2 = -.06888301;
++ 
++ 	/* Local variables */
++ 	/*static*/ double a, b, f, w, x, y, z, sigma, z2, sd, wi, sn;
++ 
++ 	x = p;
++ 	if (x<=-1 || x>=1) {
++ 		errno=EDOM;
++ 		return NaN;
++ 	}
++ 
++ 	/* determine sign of x */
++ 	if (x > 0)
++ 		sigma = 1.0;
++ 	else
++ 		sigma = -1.0;
++ 
++ 	/* Note: -1.0 < x < 1.0 */
++ 
++ 	z = fabs(x);
++ 
++ 	/* z between 0.0 and 0.85, approx. f by a 
++ 	   rational function in z  */
++ 
++ 	if (z <= 0.85) {
++ 		z2 = z * z;
++ 		f = z + z * (b0 + a1 * z2 / (b1 + z2 + a2 
++ 		    / (b2 + z2 + a3 / (b3 + z2))));
++ 
++ 	/* z greater than 0.85 */
++ 	} else {
++ 		a = 1.0 - z;
++ 		b = z;
++ 
++ 		/* reduced argument is in (0.85,1.0), 
++ 		   obtain the transformed variable */
++ 
++ 		w = sqrt(-(double)log(a + a * b));
++ 
++ 		/* aci 30-Jul-93: removed redundant tests on the range
++ 		 *	of w, which might even have caused errors.
++ 		 */
++ 
++ 		/* w greater than 4.0, approx. f by a 
++ 		   rational function in 1.0 / w */
++ 
++ 		if (w >= 4.0) {
++ 			wi = 1.0 / w;
++ 			sn = ((g3 * wi + g2) * wi + g1) * wi;
++ 			sd = ((wi + h2) * wi + h1) * wi + h0;
++ 			f = w + w * (g0 + sn / sd);
++ 
++ 		/* w between 2.5 and 4.0, approx. 
++ 		   f by a rational function in w */
++ 
++ 		} else if (/* w < 4.0 && */ w > 2.5) {
++ 			sn = ((e3 * w + e2) * w + e1) * w;
++ 			sd = ((w + f2) * w + f1) * w + f0;
++ 			f = w + w * (e0 + sn / sd);
++ 
++ 		/* w between 1.13222 and 2.5, approx. f by 
++ 		   a rational function in w */
++ 		} else /* if (w <= 2.5 && w > 1.13222) */ {
++ 			sn = ((c3 * w + c2) * w + c1) * w;
++ 			sd = ((w + d2) * w + d1) * w + d0;
++ 			f = w + w * (c0 + sn / sd);
++ 		}
++ 	}
++ 	y = sigma * f;
++ 	return(y);
++ }
++ 
++ #endif  /* INCL_STATS */
++ #endif  /* NOGAMMA */
++ 
++ #ifdef NOBESSEL
++ 
++ /*
++ static char *RCSid = "$Id: standard.c%v 3.38.2.119 1993/04/25 23:59:40 woo Exp woo $";
++ */
++ /* GNUPLOT - standard.c */
++ /*
++  * Copyright (C) 1986 - 1993   Thomas Williams, Colin Kelley
++  *
++  * Permission to use, copy, and distribute this software and its
++  * documentation for any purpose with or without fee is hereby granted, 
++  * provided that the above copyright notice appear in all copies and 
++  * that both that copyright notice and this permission notice appear 
++  * in supporting documentation.
++  *
++  * Permission to modify the software is granted, but not the right to
++  * distribute the modified code.  Modifications are to be distributed 
++  * as patches to released version.
++  *  
++  * This software is provided "as is" without express or implied warranty.
++  * 
++  *
++  * AUTHORS
++  * 
++  *   Original Software:
++  *     Thomas Williams,  Colin Kelley.
++  * 
++  *   Gnuplot 2.0 additions:
++  *       Russell Lang, Dave Kotz, John Campbell.
++  *
++  *   Gnuplot 3.0 additions:
++  *       Gershon Elber and many others.
++  * 
++  */
++ 
++ /* The bessel function approximations here are from
++  * "Computer Approximations"
++  * by Hart, Cheney et al.
++  * John Wiley & Sons, 1968
++  */
++ 
++ /* There appears to be a mistake in Hart, Cheney et al. on page 149.
++  * Where it list Qn(x)/x ~ P(z*z)/Q(z*z), z = 8/x, it should read
++  *               Qn(x)/z ~ P(z*z)/Q(z*z), z = 8/x
++  * In the functions below, Qn(x) is implementated using the later
++  * equation.
++  * These bessel functions are accurate to about 1e-13
++  */
++ 
++ 
++ #define PI_ON_FOUR       0.78539816339744830961566084581987572
++ #define PI_ON_TWO        1.57079632679489661923131269163975144
++ #define THREE_PI_ON_FOUR 2.35619449019234492884698253745962716
++ #define TWO_ON_PI        0.63661977236758134307553505349005744
++ 
++ /* jzero for x in [0,8]
++  * Index 5849, 19.22 digits precision
++  */
++ static double pjzero[] = {
++ 	 0.4933787251794133561816813446e+21,
++ 	-0.11791576291076105360384408e+21,
++ 	 0.6382059341072356562289432465e+19,
++ 	-0.1367620353088171386865416609e+18,
++ 	 0.1434354939140346111664316553e+16,
++ 	-0.8085222034853793871199468171e+13,
++ 	 0.2507158285536881945555156435e+11,
++ 	-0.4050412371833132706360663322e+8,
++ 	 0.2685786856980014981415848441e+5
++ };
++ 
++ static double qjzero[] = {
++ 	0.4933787251794133562113278438e+21,
++ 	0.5428918384092285160200195092e+19,
++ 	0.3024635616709462698627330784e+17,
++ 	0.1127756739679798507056031594e+15,
++ 	0.3123043114941213172572469442e+12,
++ 	0.669998767298223967181402866e+9,
++ 	0.1114636098462985378182402543e+7,
++ 	0.1363063652328970604442810507e+4,
++ 	0.1e+1
++ };
++ 
++ /* pzero for x in [8,inf]
++  * Index 6548, 18.16 digits precision
++  */
++ static double ppzero[] = {
++ 	0.2277909019730468430227002627e+5,
++ 	0.4134538663958076579678016384e+5,
++ 	0.2117052338086494432193395727e+5,
++ 	0.348064864432492703474453111e+4,
++ 	0.15376201909008354295771715e+3,
++ 	0.889615484242104552360748e+0
++ };
++ 
++ static double qpzero[] = {
++ 	0.2277909019730468431768423768e+5,
++ 	0.4137041249551041663989198384e+5,
++ 	0.2121535056188011573042256764e+5,
++ 	0.350287351382356082073561423e+4,
++ 	0.15711159858080893649068482e+3,
++ 	0.1e+1
++ };
++ 
++ /* qzero for x in [8,inf]
++  * Index 6948, 18.33 digits precision
++  */
++ static double pqzero[] = {
++ 	-0.8922660020080009409846916e+2,
++ 	-0.18591953644342993800252169e+3,
++ 	-0.11183429920482737611262123e+3,
++ 	-0.2230026166621419847169915e+2,
++ 	-0.124410267458356384591379e+1,
++ 	-0.8803330304868075181663e-2,
++ };
++ 
++ static double qqzero[] = {
++ 	0.571050241285120619052476459e+4,
++ 	0.1195113154343461364695265329e+5,
++ 	0.726427801692110188369134506e+4,
++ 	0.148872312322837565816134698e+4,
++ 	0.9059376959499312585881878e+2,
++ 	0.1e+1
++ };
++ 
++ 
++ /* yzero for x in [0,8]
++  * Index 6245, 18.78 digits precision
++  */
++ static double pyzero[] = {
++ 	-0.2750286678629109583701933175e+20,
++ 	 0.6587473275719554925999402049e+20,
++ 	-0.5247065581112764941297350814e+19,
++ 	 0.1375624316399344078571335453e+18,
++ 	-0.1648605817185729473122082537e+16,
++ 	 0.1025520859686394284509167421e+14,
++ 	-0.3436371222979040378171030138e+11,
++ 	 0.5915213465686889654273830069e+8,
++ 	-0.4137035497933148554125235152e+5
++ };
++ 
++ static double qyzero[] = {
++ 	0.3726458838986165881989980739e+21,
++ 	0.4192417043410839973904769661e+19,
++ 	0.2392883043499781857439356652e+17,
++ 	0.9162038034075185262489147968e+14,
++ 	0.2613065755041081249568482092e+12,
++ 	0.5795122640700729537380087915e+9,
++ 	0.1001702641288906265666651753e+7,
++ 	0.1282452772478993804176329391e+4,
++ 	0.1e+1
++ };
++ 
++ 
++ /* jone for x in [0,8]
++  * Index 6050, 20.98 digits precision
++  */
++ static double pjone[] = {
++ 	 0.581199354001606143928050809e+21,
++ 	-0.6672106568924916298020941484e+20,
++ 	 0.2316433580634002297931815435e+19,
++ 	-0.3588817569910106050743641413e+17,
++ 	 0.2908795263834775409737601689e+15,
++ 	-0.1322983480332126453125473247e+13,
++ 	 0.3413234182301700539091292655e+10,
++ 	-0.4695753530642995859767162166e+7,
++ 	 0.270112271089232341485679099e+4
++ };
++ 
++ static double qjone[] = {
++ 	0.11623987080032122878585294e+22,
++ 	0.1185770712190320999837113348e+20,
++ 	0.6092061398917521746105196863e+17,
++ 	0.2081661221307607351240184229e+15,
++ 	0.5243710262167649715406728642e+12,
++ 	0.1013863514358673989967045588e+10,
++ 	0.1501793594998585505921097578e+7,
++ 	0.1606931573481487801970916749e+4,
++ 	0.1e+1
++ };
++ 
++ 
++ /* pone for x in [8,inf]
++  * Index 6749, 18.11 digits precision
++  */
++ static double ppone[] = {
++ 	0.352246649133679798341724373e+5,
++ 	0.62758845247161281269005675e+5,
++ 	0.313539631109159574238669888e+5,
++ 	0.49854832060594338434500455e+4,
++ 	0.2111529182853962382105718e+3,
++ 	0.12571716929145341558495e+1
++ };
++ 
++ static double qpone[] = {
++ 	0.352246649133679798068390431e+5,
++ 	0.626943469593560511888833731e+5,
++ 	0.312404063819041039923015703e+5,
++ 	0.4930396490181088979386097e+4,
++ 	0.2030775189134759322293574e+3,
++ 	0.1e+1
++ };
++ 
++ /* qone for x in [8,inf]
++  * Index 7149, 18.28 digits precision
++  */
++ static double pqone[] = {
++ 	0.3511751914303552822533318e+3,
++ 	0.7210391804904475039280863e+3,
++ 	0.4259873011654442389886993e+3,
++ 	0.831898957673850827325226e+2,
++ 	0.45681716295512267064405e+1,
++ 	0.3532840052740123642735e-1
++ };
++ 
++ static double qqone[] = {
++ 	0.74917374171809127714519505e+4,
++ 	0.154141773392650970499848051e+5,
++ 	0.91522317015169922705904727e+4,
++ 	0.18111867005523513506724158e+4,
++ 	0.1038187585462133728776636e+3,
++ 	0.1e+1
++ };
++ 
++ 
++ /* yone for x in [0,8]
++  * Index 6444, 18.24 digits precision
++  */
++ static double pyone[] = {
++ 	-0.2923821961532962543101048748e+20,
++ 	 0.7748520682186839645088094202e+19,
++ 	-0.3441048063084114446185461344e+18,
++ 	 0.5915160760490070618496315281e+16,
++ 	-0.4863316942567175074828129117e+14,
++ 	 0.2049696673745662182619800495e+12,
++ 	-0.4289471968855248801821819588e+9,
++ 	 0.3556924009830526056691325215e+6
++ };
++ 
++ static double qyone[] = {
++ 	0.1491311511302920350174081355e+21,
++ 	0.1818662841706134986885065935e+19,
++ 	0.113163938269888452690508283e+17,
++ 	0.4755173588888137713092774006e+14,
++ 	0.1500221699156708987166369115e+12,
++ 	0.3716660798621930285596927703e+9,
++ 	0.726914730719888456980191315e+6,
++ 	0.10726961437789255233221267e+4,
++ 	0.1e+1
++ };
++ 
++ 
++ /* bessel function approximations */
++ static double jzero(x)
++ double x;
++ {
++ double p, q, x2;
++ int n;
++ 
++ 	x2 = x * x;
++ 	p = pjzero[8];
++ 	q = qjzero[8];
++ 	for (n=7; n>=0; n--) {
++ 		p = p*x2 + pjzero[n];
++ 		q = q*x2 + qjzero[n];
++ 	}
++ 	return(p/q);
++ }
++ 
++ static double pzero(x)
++ double x;
++ {
++ double p, q, z, z2;
++ int n;
++ 
++ 	z = 8.0 / x;
++ 	z2 = z * z;
++ 	p = ppzero[5];
++ 	q = qpzero[5];
++ 	for (n=4; n>=0; n--) {
++ 		p = p*z2 + ppzero[n];
++ 		q = q*z2 + qpzero[n];
++ 	}
++ 	return(p/q);
++ }
++ 
++ static double qzero(x)
++ double x;
++ {
++ double p, q, z, z2;
++ int n;
++ 
++ 	z = 8.0 / x;
++ 	z2 = z * z;
++ 	p = pqzero[5];
++ 	q = qqzero[5];
++ 	for (n=4; n>=0; n--) {
++ 		p = p*z2 + pqzero[n];
++ 		q = q*z2 + qqzero[n];
++ 	}
++ 	return(p/q);
++ }
++ 
++ static double yzero(x)
++ double x;
++ {
++ double p, q, x2;
++ int n;
++ 
++ 	x2 = x * x;
++ 	p = pyzero[8];
++ 	q = qyzero[8];
++ 	for (n=7; n>=0; n--) {
++ 		p = p*x2 + pyzero[n];
++ 		q = q*x2 + qyzero[n];
++ 	}
++ 	return(p/q);
++ }
++ 
++ double j0(x)
++ double x;
++ {
++ 	if ( x <= 0.0 )
++ 		x = -x;
++ 	if ( x < 8.0 )
++ 		return(jzero(x));
++ 	else
++ 		return( sqrt(TWO_ON_PI/x) *
++ 			(pzero(x)*cos(x-PI_ON_FOUR) - 8.0/x*qzero(x)*sin(x-PI_ON_FOUR)) );
++ 
++ }
++ 
++ double y0(x)
++ double x;
++ {
++ 	if ( x < 0.0 ) {
++ 		errno=EDOM;
++ 		return NaN;
++ 	}
++ 	if ( x < 8.0 )
++ 		return( yzero(x) + TWO_ON_PI*j0(x)*log(x) );
++ 	else
++ 		return( sqrt(TWO_ON_PI/x) *
++ 			(pzero(x)*sin(x-PI_ON_FOUR) + 
++ 			(8.0/x)*qzero(x)*cos(x-PI_ON_FOUR)) );
++ 
++ }
++ 
++ 
++ static double jone(x)
++ double x;
++ {
++ double p, q, x2;
++ int n;
++ 
++ 	x2 = x * x;
++ 	p = pjone[8];
++ 	q = qjone[8];
++ 	for (n=7; n>=0; n--) {
++ 		p = p*x2 + pjone[n];
++ 		q = q*x2 + qjone[n];
++ 	}
++ 	return(p/q);
++ }
++ 
++ static double pone(x)
++ double x;
++ {
++ double p, q, z, z2;
++ int n;
++ 
++ 	z = 8.0 / x;
++ 	z2 = z * z;
++ 	p = ppone[5];
++ 	q = qpone[5];
++ 	for (n=4; n>=0; n--) {
++ 		p = p*z2 + ppone[n];
++ 		q = q*z2 + qpone[n];
++ 	}
++ 	return(p/q);
++ }
++ 
++ static double qone(x)
++ double x;
++ {
++ double p, q, z, z2;
++ int n;
++ 
++ 	z = 8.0 / x;
++ 	z2 = z * z;
++ 	p = pqone[5];
++ 	q = qqone[5];
++ 	for (n=4; n>=0; n--) {
++ 		p = p*z2 + pqone[n];
++ 		q = q*z2 + qqone[n];
++ 	}
++ 	return(p/q);
++ }
++ 
++ static double yone(x)
++ double x;
++ {
++ double p, q, x2;
++ int n;
++ 
++ 	x2 = x * x;
++ 	p = 0.0;
++ 	q = qyone[8];
++ 	for (n=7; n>=0; n--) {
++ 		p = p*x2 + pyone[n];
++ 		q = q*x2 + qyone[n];
++ 	}
++ 	return(p/q);
++ }
++ 
++ double j1(x)
++ double x;
++ {
++ double v,w;
++ 	v = x;
++ 	if ( x < 0.0 )
++ 		x = -x;
++ 	if ( x < 8.0 )
++ 		return(v*jone(x));
++ 	else {
++ 		w = sqrt(TWO_ON_PI/x) *
++ 			(pone(x)*cos(x-THREE_PI_ON_FOUR) - 
++ 			   8.0/x*qone(x)*sin(x-THREE_PI_ON_FOUR)) ;
++ 		if (v < 0.0)
++ 			w = -w;
++ 		return( w );
++ 	}
++ }
++ 
++ double y1(x)
++ double x;
++ {
++ 	if ( x <= 0.0 ) {
++ 		errno=EDOM;
++ 		return NaN;
++ 	}
++ 	if ( x < 8.0 )
++ 		return( x*yone(x) + TWO_ON_PI*(j1(x)*log(x) - 1.0/x) );
++ 	else
++ 		return( sqrt(TWO_ON_PI/x) *
++ 			(pone(x)*sin(x-THREE_PI_ON_FOUR) + 
++ 			(8.0/x)*qone(x)*cos(x-THREE_PI_ON_FOUR)) );
++ }
++ 
++ #endif  /* NOBESSEL */
++ 
++ #ifdef NORAND
++ /***********************************************************************
++      double ranf(double init)
++ 		RANDom number generator as a Function
++      Returns a random floating point number from a uniform distribution
++      over 0 - 1 (endpoints of this interval are not returned) using a
++      large integer generator.
++      This is a transcription from Pascal to Fortran of routine
++      Uniform_01 from the paper
++      L'Ecuyer, P. and Cote, S. "Implementing a Random Number Package
++      with Splitting Facilities." ACM Transactions on Mathematical
++      Software, 17:98-111 (1991)
++ 
++ 	       GeNerate LarGe Integer
++      Returns a random integer following a uniform distribution over
++      (1, 2147483562) using the generator.
++      This is a transcription from Pascal to Fortran of routine
++      Random from the paper
++      L'Ecuyer, P. and Cote, S. "Implementing a Random Number Package
++      with Splitting Facilities." ACM Transactions on Mathematical
++      Software, 17:98-111 (1991)
++ ***********************************************************************/
++ 
++ /*
++  * [aci 28-Jul-93]
++  *    Change to accept a long which can be used as a seed value
++  *    if negative, or ignored if non-negative.  This is more useful
++  *    than the original behaviour which has fixed seeds.  Only one
++  *    seed can be changed, but that should be enough.
++  *    Follow the rand/srand convention, where the default sequence
++  *    (if srand isn't called) is the same as will result from srand(1).
++  */
++ 
++ static long     Xm1 = 2147483563L;
++ static long     Xm2 = 2147483399L;
++ static long     Xa1 = 40014L;
++ static long     Xa2 = 40692L;
++ 
++ double
++ ranf(long init)   /* was double */
++ {
++     long            k, z;
++     static int      firsttime = 1;
++     static long     s1, s2;
++     /* static double   normalize = 1.0/Xm1; */
++ 
++     /* (Re)-Initialize seeds if necessary */
++     if (init < 0 || firsttime == 1) {
++ 	firsttime = 0;
++ 	s1 = (init<0) ? -init : 1L;  /* follow srand(1) convention */
++ 	s2 = 1234567890L;
++ 	if (init<0) return 1.0;  /* never returned otherwise */
++     }
++     /* Generate pseudo random integers */
++     k = s1 / 53668L;
++     s1 = Xa1 * (s1 - k * 53668L) - k * 12211;
++     if (s1 < 0)
++ 	s1 += Xm1;
++     k = s2 / 52774L;
++     s2 = Xa2 * (s2 - k * 52774L) - k * 3791;
++     if (s2 < 0)
++ 	s2 += Xm2;
++     z = s1 - s2;
++     if (z < 1)
++ 	z += (Xm1 - 1);
++ 
++     /*
++      * 4.656613057E-10 is 1/Xm1.  Xm1 is set at the top of this file and is
++      * currently 2147483563. If Xm1 changes, change this also.
++      */
++     /* return normalize*z; */
++     return 4.656613057E-10 * z;
++ }
++ 
++ #endif  /* NORAND */
+Only in src: extramat.o
+Only in src: fft.o
+Only in src: fit.o
+Only in src: fits.o
+diff -cwr src.ori/fudgit.c src/fudgit.c
+*** src.ori/fudgit.c	Fri Jul  9 00:15:42 1993
+--- src/fudgit.c	Sat Jul 31 01:31:36 1993
+***************
+*** 6,11 ****
+--- 6,12 ----
+  #include <unistd.h>
+  #endif
+  #include <signal.h>
++ #include <io.h>
+  
+  #include "fudgit.h"
+  #include "macro.h"
+***************
+*** 22,27 ****
+--- 23,35 ----
+      mallopt(M_DEBUG, 1);
+      mallopt(M_MXFAST, 0);
+      ******/
++     /* [aci 31-Jul-93]
++      *   Make Ft_Progname and Ft_Cwd available for init routines.
++      */
++     Ft_Interact = isatty(0);
++     Ft_Progname = v[0];
++     Ft_clearpush_cwd();
++ 
+      Ft_initmac();
+      Ft_initstacks();  /* don't fool around with the order */
+      Ft_initparser();
+***************
+*** 29,48 ****
+      Ft_initcode();
+      Ft_initsetup();
+  	Ft_initdl();
+-     Ft_clearpush_cwd();
+      signal(SIGPIPE, SIG_IGN);
+      signal(SIGFPE, Ft_catcher);
+      signal(SIGINT, Ft_catcher);
+      signal(SIGQUIT, Ft_catcher);
+      signal(SIGTSTP, Ft_catcher);
+  #ifdef SIGBUS
+      signal(SIGBUS, Ft_catcher);
+  #endif
+      signal(SIGHUP, Ft_catcher);
+      signal(SIGSEGV, Ft_catcher);
+      signal(SIGILL, Ft_catcher);
+-     Ft_Interact = isatty(0);
+- 	Ft_Progname = v[0];
+  
+      if (c == 1 && Ft_Interact) {
+          initload();
+--- 37,57 ----
+      Ft_initcode();
+      Ft_initsetup();
+  	Ft_initdl();
+      signal(SIGPIPE, SIG_IGN);
+      signal(SIGFPE, Ft_catcher);
+      signal(SIGINT, Ft_catcher);
+      signal(SIGQUIT, Ft_catcher);
++ #ifdef SIGTSTP
+      signal(SIGTSTP, Ft_catcher);
++ #endif
+  #ifdef SIGBUS
+      signal(SIGBUS, Ft_catcher);
+  #endif
++ #ifdef SIGHUP
+      signal(SIGHUP, Ft_catcher);
++ #endif    
+      signal(SIGSEGV, Ft_catcher);
+      signal(SIGILL, Ft_catcher);
+  
+      if (c == 1 && Ft_Interact) {
+  	initload();
+***************
+*** 77,83 ****
+--- 86,96 ----
+      char name[TOKENSIZE];
+      struct stat buf;
+  
++ #ifdef __EMX__
++     sprintf(name, "%s/fudgit.rc", Ft_Home);
++ #else
+      sprintf(name, "%s/.fudgitrc", Ft_Home);
++ #endif
+      if (stat(name, &buf) == 0)
+  	return(Ft_pushio(name, AFILE, 0));
+  
+Only in src: fudgit.exe
+diff -cwr src.ori/fudgit.h src/fudgit.h
+*** src.ori/fudgit.h	Fri Jul  9 00:15:44 1993
+--- src/fudgit.h	Fri Jul 30 04:03:16 1993
+***************
+*** 11,23 ****
+   */
+  
+  /* where to find the help file: Now defined from the Makefile */
+! /* #define HELPFILE     "/usr/local/lib/fudgit.help"  */
+  /* the default pager if not defined in env    */
+! #define DEFPAGER     "more" 
+  /* default shell if not defined in env */
+! #define DEFSHELL      "/bin/csh"
+  /* the default plotting program */
+! #define PLOTTING     "/usr/local/bin/gnuplot"
+  /* the default number printing format  */
+  #define FORMAT       "% 10.8e"
+  /* the default variable number printing format  */
+--- 11,23 ----
+   */
+  
+  /* where to find the help file: Now defined from the Makefile */
+! /* #define HELPFILE     "fudgit.hlp"  */
+  /* the default pager if not defined in env    */
+! #define DEFPAGER     ""
+  /* default shell if not defined in env */
+! #define DEFSHELL      "command.com"
+  /* the default plotting program */
+! #define PLOTTING     "gnuplot.exe"
+  /* the default number printing format  */
+  #define FORMAT       "% 10.8e"
+  /* the default variable number printing format  */
+***************
+*** 25,31 ****
+  /* the default fit iteration number  */
+  #define ITER         10 
+  /* The default history name */
+! #define HISTORY      ".hist_fudgit"
+  /* The maximum number of memory entries */
+  #define HISTNUM      52
+  
+--- 25,31 ----
+  /* the default fit iteration number  */
+  #define ITER         10 
+  /* The default history name */
+! #define HISTORY      "fudgit.his"
+  /* The maximum number of memory entries */
+  #define HISTNUM      52
+  
+Only in src: fudgit.hlp
+Only in src: fudgit.o
+diff -cwr src.ori/help.c src/help.c
+*** src.ori/help.c	Fri Jul  9 00:15:44 1993
+--- src/help.c	Fri Jul 16 01:18:18 1993
+***************
+*** 745,750 ****
+--- 745,757 ----
+   * David Kotz (David.Kotz@Dartmouth.edu) 10/89
+   * Modified by Martin-D. Lacasse (isaac@physics.mcgill.ca) 12/91
+   */
++ 
++ /*
++  *  Andrew Innes, 16 Jul 93:
++  *      Add support for specifying helpfile with the environment
++  *      variable FUDGITHELP.
++  */
++ 
+  /* The first call is done without the "help" string */
+  int Ft_help(int argc, char **argv, char *l, Command *cmp)
+  {
+***************
+*** 760,765 ****
+--- 767,789 ----
+      extern int Ft_iolevel(void);
+  	extern int Ft_vgetargp(char *b, char **p, int type, char **add);
+  	extern char *Ft_nextline(char *prompt, int *eof);
++     static char *helpfile = HELPFILE;
++     static int find_helpfile = 1;
++ 
++     if (find_helpfile) {
++ 	FILE *fp = fopen(helpfile,"r");
++ 	if (fp)
++ 	    fclose(fp);
++ 	else {
++ 	    helpfile = getenv("FUDGITHELP");
++ 	    if (helpfile && (fp=fopen(helpfile,"r")))
++ 		fclose(fp);
++ 	    else
++ 		fprintf(stderr, "Couldn't find help file %s\n",
++ 			helpfile ? helpfile : HELPFILE);
++ 	}
++ 	find_helpfile = 0;
++     }
+  
+      if (!Ft_Interact || Ft_iolevel()) {
+  	fprintf(stderr, "%s: Interactive use only.\n",
+***************
+*** 782,788 ****
+      subtopics = 0;
+      more_help = 1;
+  
+!     switch (help(cp1, HELPFILE, &subtopics)) {
+         case H_FOUND: {
+            sprintf(helpbuf, "%s", cp1);
+            do {
+--- 806,812 ----
+      subtopics = 0;
+      more_help = 1;
+  
+!     switch (help(cp1, helpfile, &subtopics)) {
+         case H_FOUND: {
+  	  sprintf(helpbuf, "%s", cp1);
+  	  do {
+***************
+*** 801,807 ****
+                      cp2 = Ft_nextline(prompt, &eof);
+                  } while (cp2 == NULL);
+                  if (*cp2 == '?') {
+!                     help(helpbuf, HELPFILE, &subtopics);
+                  }
+                  else if (*cp2 != '\n') {
+                      sprintf(prompt, "help %s %s", helpbuf, cp2);
+--- 825,831 ----
+  		    cp2 = Ft_nextline(prompt, &eof);
+  		} while (cp2 == NULL);
+  		if (*cp2 == '?') {
+! 		    help(helpbuf, helpfile, &subtopics);
+  		}
+  		else if (*cp2 != '\n') {
+  		    sprintf(prompt, "help %s %s", helpbuf, cp2);
+***************
+*** 824,830 ****
+            break;
+         }
+         case H_ERROR: {
+!           perror(HELPFILE);
+            break;
+         }
+         default: {        /* defensive programming */
+--- 848,854 ----
+  	  break;
+         }
+         case H_ERROR: {
+! 	  perror(helpfile);
+  	  break;
+         }
+         default: {        /* defensive programming */
+Only in src: help.o
+Only in src: if.o
+diff -cwr src.ori/init.c src/init.c
+*** src.ori/init.c	Fri Jul  9 00:15:46 1993
+--- src/init.c	Fri Jul 30 00:28:18 1993
+***************
+*** 25,30 ****
+--- 25,60 ----
+  #define M_E     2.7182818284590452354
+  #endif
+  
++ #if defined(NOGAMMA)
++ /*
++  * [aci 28-Jul-93]
++  *       Use the math/stats routines from gnuplot 3.4, to get
++  *       gamma/lgamma/igamma, [inv]erf, [inv]normal, and erfc.
++  */
++ extern double gamma(double);
++ extern double lgamma(double);
++ extern double igamma(double,double);
++ #if defined(INCL_STATS)
++ extern double normal(double);
++ extern double invnormal(double);
++ extern double erf(double);
++ extern double erfc(double);
++ extern double inverf(double);
++ #endif
++ #endif /* NOGAMMA */
++ 
++ #if defined(NOBESSEL)
++ /*
++  * [aci 28-Jul-93]
++  *       Use the math/stats routines from gnuplot 3.4, to get
++  *       all standard bessel functions except jn and yn.
++  */
++ extern double j0(double);
++ extern double j1(double);
++ extern double y0(double);
++ extern double y1(double);
++ #endif /* NOBESSEL */
++ 
+  extern double Ft_Log(double x),
+    Ft_Log10(double x),
+    Ft_Sqrt(double x),
+***************
+*** 39,46 ****
+--- 69,78 ----
+    Ft_Coth(double x),
+    Ft_Csc(double x),
+    Ft_Csch(double x),
++ #ifndef NOBESSEL
+    Ft_Jn(double i, double d),
+    Ft_Yn(double i, double d),
++ #endif
+    Ft_Y0(double d),
+    Ft_Y1(double d),
+    Ft_Asin(double x),
+***************
+*** 53,58 ****
+--- 85,96 ----
+    Ft_Sinh(double x),
+    Ft_Tanh(double x),
+    Ft_Tan(double x),
++ #ifdef NOGAMMA
++   Ft_Gamma(double x),
++   Ft_Igamma(double a, double x),
++   Ft_Inv_Normal(double x),
++   Ft_Inv_Erf(double x),
++ #endif
+    Ft_Lgamma(double x),
+    Ft_Hypot(double x, double y),
+    Ft_Atan2(double x, double y),
+***************
+*** 151,164 ****
+      {"sec", Ft_Sec},
+      {"rint", rint},
+      {"octal", Ft_octal},
+      {"log", Ft_Log10},
+      {"ln", Ft_Log},
+      {"lgamma", Ft_Lgamma},
+  	{"interp", Ft_interp},
+      {"int", Ft_integer},
+      {"floor", floor},
+      {"exp", Ft_Exp},
+! #ifndef HPUX
+      {"erfc", erfc},
+      {"erf", erf},
+  #endif
+--- 189,212 ----
+      {"sec", Ft_Sec},
+      {"rint", rint},
+      {"octal", Ft_octal},
++ #if defined(NOGAMMA) && defined(INCL_STATS)
++     {"normal", normal},
++ #endif
+      {"log", Ft_Log10},
+      {"ln", Ft_Log},
+      {"lgamma", Ft_Lgamma},
++ #if defined(NOGAMMA) && defined(INCL_STATS)
++     {"inv_normal", Ft_Inv_Normal},
++     {"inv_erf", Ft_Inv_Erf},
++ #endif
+      {"interp", Ft_interp},
+      {"int", Ft_integer},
++ #if defined(NOGAMMA)
++     {"gamma", Ft_Gamma},
++ #endif
+      {"floor", floor},
+      {"exp", Ft_Exp},
+! #if !defined(HPUX) || defined(NOGAMMA) && defined(INCL_STATS)
+      {"erfc", erfc},
+      {"erf", erf},
+  #endif
+***************
+*** 172,178 ****
+      {"cbrt", Ft_Cbrt},
+      {"besy1", Ft_Y1},
+      {"besy0", Ft_Y0},
+! #ifndef HPUX
+      {"besj1", j1},
+      {"besj0", j0},
+  #endif
+--- 220,226 ----
+      {"cbrt", Ft_Cbrt},
+      {"besy1", Ft_Y1},
+      {"besy0", Ft_Y0},
+! #if !defined(HPUX) || defined(NOBESSEL)
+      {"besj1", j1},
+      {"besj0", j0},
+  #endif
+***************
+*** 192,200 ****
+--- 240,253 ----
+  } builtins2[] = {
+  	{"min", Ft_minimum},
+  	{"max", Ft_maximum},
++ #ifdef NOGAMMA
++     {"igamma", Ft_Igamma},
++ #endif
+      {"hypot", Ft_Hypot},
++ #ifndef NOBESSEL
+      {"besyn", Ft_Yn},
+      {"besjn", Ft_Jn},
++ #endif
+      {"atan2", Ft_Atan2},
+      {0, 0}
+  };
+Only in src: init.o
+diff -cwr src.ori/install.c src/install.c
+*** src.ori/install.c	Fri Jul  9 00:15:46 1993
+--- src/install.c	Fri Jul 30 03:05:22 1993
+***************
+*** 137,143 ****
+  	}
+  	rtnes[rti].n_name = (char *)NULL;
+  	if (strcmp(cmd->fname, "reinstall") == 0) {
+! #if defined(sun) || defined(sparc) || defined(ultrix)
+  		dld_unlink_by_file(argv[1], 0);
+  #else
+  		;
+--- 137,143 ----
+  	}
+  	rtnes[rti].n_name = (char *)NULL;
+  	if (strcmp(cmd->fname, "reinstall") == 0) {
+! #if defined(sun) || defined(sparc) || defined(ultrix) || defined(__EMX__)
+  		dld_unlink_by_file(argv[1], 0);
+  #else
+  		;
+Only in src: lexi.o
+diff -cwr src.ori/macro.c src/macro.c
+*** src.ori/macro.c	Fri Jul  9 00:16:08 1993
+--- src/macro.c	Fri Jul 30 23:00:30 1993
+***************
+*** 723,728 ****
+--- 723,731 ----
+  	extern void Ft_resetindex(void);
+      extern FILE *Ft_Outprint;
+  
++ #ifdef __EMX__        
++     signal(sig, SIG_ACK);   /* acknowledge every signal */
++ #endif
+      switch (sig) {
+      case SIGINT:
+  #ifdef RESTART_SIGHANDLER 
+***************
+*** 775,780 ****
+--- 778,784 ----
+      case SIGILL:
+  	fputs("\nIllegal instruction signal received.\n", stderr);
+  	Ft_exit(2);
++ #ifdef SIGTSTP    
+      case SIGTSTP:
+  	fputs("\nStop signal received.\n", stderr);
+  	fputs("Use 'fg' to call in foreground.\n", stderr);
+***************
+*** 784,789 ****
+--- 788,794 ----
+  #else
+  		return(0);
+  #endif
++ #endif                
+  		break;
+      default:
+  	fprintf(stderr, "Unknown signal %d received.\n", sig);
+Only in src: macro.o
+Only in src: makefile.emx
+diff -cwr src.ori/math.c src/math.c
+*** src.ori/math.c	Fri Jul  9 00:16:08 1993
+--- src/math.c	Fri Jul 30 00:25:12 1993
+***************
+*** 8,13 ****
+--- 8,16 ----
+  #ifdef AIX
+  #include <fp.h>
+  #endif
++ #ifdef __EMX__
++ #include <float.h>
++ #endif
+  #ifndef NOSTDLIB_H
+  #include <stdlib.h>
+  #endif
+***************
+*** 22,27 ****
+--- 25,49 ----
+  extern double asin(double), atan(double);
+  extern double exp(double), sqrt(double);
+  #endif
++ 
++ #if defined(NOGAMMA)
++ /*
++  * [aci 28-Jul-93]
++  *       Use the math/stats routines from gnuplot 3.4, to get
++  *       gamma/lgamma/igamma, [inv]erf, [inv]normal, and erfc.
++  */
++ extern double gamma(double);
++ extern double lgamma(double);
++ extern double igamma(double,double);
++ #if defined(INCL_STATS)
++ extern double normal(double);
++ extern double invnormal(double);
++ extern double erf(double);
++ extern double erfc(double);
++ extern double inverf(double);
++ #endif
++ 
++ #else /* NOGAMMA */
+  #if defined(NeXT) || defined(OSF)
+  extern double lgamma(double);
+  #define gamma(x) lgamma(x)
+***************
+*** 28,33 ****
+--- 50,69 ----
+  #else
+  extern double gamma(double);
+  #endif
++ #endif /* NOGAMMA */
++ 
++ #if defined(NOBESSEL)
++ /*
++  * [aci 28-Jul-93]
++  *       Use the math/stats routines from gnuplot 3.4, to get
++  *       all standard bessel functions except jn and yn.
++  */
++ extern double j0(double);
++ extern double j1(double);
++ extern double y0(double);
++ extern double y1(double);
++ #endif /* NOBESSEL */
++ 
+  extern double pow(double, double);
+  extern double cosh(double), sinh(double), tanh(double);
+  extern void Ft_matherror (char *s1, char *s2, int lino);
+***************
+*** 35,40 ****
+--- 71,80 ----
+  
+  double Ft_Rand(void)
+  {
++ #ifdef NORAND   /* [aci 28-Jul-93]  Decent RNG from gnuplot 3.4 */
++     extern double ranf(long);
++     return ranf(0);  /* arg>=0 is ignored, <0 sets seed */
++ #else
+  #if defined(AIX) || defined(NeXT)
+  /* For AIX which does not have a better random number generator  */
+  #include <stdlib.h>
+***************
+*** 45,54 ****
+--- 85,101 ----
+  	extern double drand48(void);
+      return(drand48());
+  #endif
++ #endif /* NORAND */
+  }
+  
+  double Ft_Srand(double x)
+  {
++ #ifdef NORAND   /* [aci 28-Jul-93]  Decent RNG from gnuplot 3.4 */
++     extern double ranf(long);
++     if (x==0.0) x=1.0;
++     (void)ranf( (long) -fabs(x));   /* initialize seeds when arg < 0 */
++     return x;
++ #else
+      long xx;
+  #if defined(AIX) || defined(NeXT)
+  #define srand48(x) srand(x)
+***************
+*** 58,63 ****
+--- 105,111 ----
+      xx = (long) x;
+      srand48(xx);
+      return((double)x);
++ #endif /* NORAND */
+  }
+  
+  double Ft_Log(double x)
+***************
+*** 72,81 ****
+--- 120,161 ----
+      return(Ft_errcheck(log10(x), "log"));
+  }
+  
++ #ifdef NOGAMMA
++ double Ft_Gamma(double x)
++ {
++     errno = 0;
++     return(Ft_errcheck(gamma(x), "gamma"));
++ }
++ 
++ double Ft_Igamma(double a, double x)
++ {
++     errno = 0;
++     return(Ft_errcheck(igamma(a,x), "igamma"));
++ }
++ #endif
++ 
++ #if defined(NOGAMMA) && defined(INCL_STATS)
++ double Ft_Inv_Normal(double x)
++ {
++     errno = 0;
++     return(Ft_errcheck(invnormal(x), "inv_normal"));
++ }
++ 
++ double Ft_Inv_Erf(double x)
++ {
++     errno = 0;
++     return(Ft_errcheck(inverf(x), "inv_erf"));
++ }
++ #endif
++ 
+  double Ft_Lgamma(double x)
+  {
+      errno = 0;
++ #ifdef NOGAMMA
++     return(Ft_errcheck(lgamma(x), "lgamma"));
++ #else
+      return(Ft_errcheck(gamma(x), "lgamma"));
++ #endif
+  }
+  
+  double Ft_Exp(double x)
+***************
+*** 227,232 ****
+--- 307,313 ----
+      return(Ft_errcheck(y1(d), "besy1"));
+  }
+  
++ #ifndef NOBESSEL
+  double Ft_Yn(double i, double d)
+  {
+      errno = 0;
+***************
+*** 238,243 ****
+--- 319,325 ----
+      errno = 0;
+      return(Ft_errcheck(jn((int)i, d), "besjn"));
+  }
++ #endif
+  
+  double Ft_errcheck(double x, char *str)
+  {
+***************
+*** 253,258 ****
+--- 335,345 ----
+  	errno = 0;
+  	Ft_matherror("%s: Result out of range.", str, 0);
+      }
++ #ifdef __EMX__
++ # define IsINF(x) (x>DBL_MAX || x<-DBL_MAX)
++ # define IsNaN(x) (x!=x)
++ # define IsNaNorINF(x) (IsINF(x) || IsNaN(x))
++ #endif
+  #if defined (IsNaNorINF)
+  	else if (IsNaNorINF(x) && (Ft_Check & NAN_CHK || Ft_Check & INF_CHK)) {
+  # if defined (IsINF)
+Only in src: math.o
+Only in src: mathpars.o
+Only in src: medfit.o
+Only in src: minit.o
+Only in src: mrqmin.o
+diff -cwr src.ori/plot.c src/plot.c
+*** src.ori/plot.c	Fri Jul  9 00:16:10 1993
+--- src/plot.c	Sat Jul 31 04:00:58 1993
+***************
+*** 7,12 ****
+--- 7,14 ----
+  #ifndef NOUNISTD_H
+  #include <unistd.h>
+  #endif
++ #include <io.h>
++ #include <process.h>
+  
+  #include "fudgit.h"
+  #include "setshow.h"
+***************
+*** 190,199 ****
+  int Ft_killplot(void)
+  {
+      if (Pid > 0) {
+!         kill(Pid, SIGKILL);
+  		reapit();
+  	}
+!     return(0);
+  }
+  
+   /* PMODE FUNCTION */
+--- 192,211 ----
+  int Ft_killplot(void)
+  {
+      if (Pid > 0) {
+! 	/* [aci 31-Jul-93]
+! 	 *   kill seems to fail when I try this on OS/2 2.1 (Dec beta).
+! 	 *   Anyway, no harm in some error checking!  Also, SIGTERM is
+! 	 *   a little nicer than SIGKILL to the plot program.
+! 	 */
+! 	int rc=kill(Pid, SIGTERM);
+! 	if (rc==Pid) {
+  	    reapit();
++ 	    return 0;
+  	}
+! 	fprintf(stderr, "killplot: couldn't kill plotter\n");
+! 	return -1;
+!     }
+!     return 0;
+  }
+  
+   /* PMODE FUNCTION */
+***************
+*** 253,258 ****
+--- 265,273 ----
+  #ifdef RESTART_SIGHANDLER
+  	signal(SIGINT, bangplot);
+  #endif
++ #ifdef __EMX__
++ 	signal(SIGINT,SIG_ACK);
++ #endif
+  #ifndef VOID_SIGHANDLER
+      return(0);
+  #endif
+***************
+*** 260,265 ****
+--- 275,283 ----
+  
+  #include <sys/types.h>
+  #include <sys/wait.h>
++ #ifdef __EMX__
++ typedef int pid_t;      /* left out of sys/types */
++ #endif
+  
+  static void reapit()
+  {
+***************
+*** 281,285 ****
+  	}
+  	Pid = 0;
+  }
+- 
+  
+--- 299,302 ----
+Only in src: plot.o
+Only in src/readline: funmap.o
+Only in src/readline: history.o
+Only in src/readline: keymaps.o
+Only in src/readline: libreadl.a
+diff -cwr src.ori/readline/makefile src/readline/makefile
+*** src.ori/readline/makefile	Fri Jul  9 00:16:12 1993
+--- src/readline/makefile	Wed Jul 14 11:06:34 1993
+***************
+*** 1,6 ****
+--- 1,7 ----
+  ## -*- text -*- ####################################################
+  #                                                                  #
+  # Makefile for readline and history libraries.                     #
++ #   aci 14-Jul-93:  Modified for EMX/GCC -> define USG             #
+  #                                                                  #
+  ####################################################################
+  
+***************
+*** 16,25 ****
+  
+  # Define TYPES as -DVOID_SIGHANDLER if your operating system uses
+  # a return type of "void" for signal handlers.
+! # TYPES = -DVOID_SIGHANDLER
+  
+  # Define USG as -DUSG if you are using a System V operating system.
+! USG = #-DUSG
+  
+  # HP-UX compilation requires the BSD library.
+  #LOCAL_LIBS = -lBSD
+--- 17,26 ----
+  
+  # Define TYPES as -DVOID_SIGHANDLER if your operating system uses
+  # a return type of "void" for signal handlers.
+! TYPES = -DVOID_SIGHANDLER
+  
+  # Define USG as -DUSG if you are using a System V operating system.
+! USG = -DUSG
+  
+  # HP-UX compilation requires the BSD library.
+  #LOCAL_LIBS = -lBSD
+***************
+*** 34,48 ****
+  # If you don't have alloca
+  ALLOCA=     # alloca.o
+  # If not defined above
+! # OPT = # -O behaves wierd on irix and some others. !
+! DEBUG_FLAGS =  # -g
+! LDFLAGS = $(DEBUG_FLAGS) -lmalloc
+  #-cckr -DBSD_COMPAT -DBSD_SIGNALS
+  CFLAGS = $(DEBUG_FLAGS) $(USG) $(OTH_CFLAGS)
+  
+  # A good alternative is gcc -traditional.
+! #CC = gcc # -traditional
+! CC = cc
+  RANLIB = /usr/bin/ranlib
+  AR = ar
+  RM = rm
+--- 35,50 ----
+  # If you don't have alloca
+  ALLOCA=     # alloca.o
+  # If not defined above
+! OPT = -O # -O behaves wierd on irix and some others. !
+! DEBUG_FLAGS = -g
+! OTH_CFLAGS = -Wall
+! LDFLAGS = $(DEBUG_FLAGS) #-lmalloc
+  #-cckr -DBSD_COMPAT -DBSD_SIGNALS
+  CFLAGS = $(DEBUG_FLAGS) $(USG) $(OTH_CFLAGS)
+  
+  # A good alternative is gcc -traditional.
+! CC = gcc # -traditional
+! #CC = cc
+  RANLIB = /usr/bin/ranlib
+  AR = ar
+  RM = rm
+***************
+*** 57,65 ****
+  ##########################################################################
+  
+  libreadline.a:	readline.o history.o funmap.o keymaps.o $(ALLOCA)
+! 	$(RM) -f libreadline.a
+  	$(AR) clq libreadline.a readline.o history.o funmap.o keymaps.o $(ALLOCA)
+! 	-if [ -f $(RANLIB) ]; then $(RANLIB) libreadline.a; fi
+  
+  readline.o:	readline.c readline.h chardefs.h  keymaps.h history.h vi_mode.c
+  	$(CC) -c $(CFLAGS) $(CPPFLAGS) $(READLINE_DEFINES) $*.c
+--- 59,68 ----
+  ##########################################################################
+  
+  libreadline.a:  readline.o history.o funmap.o keymaps.o $(ALLOCA)
+! #        $(RM) -f libreadline.a
+! 	del libreadline.a
+  	$(AR) clq libreadline.a readline.o history.o funmap.o keymaps.o $(ALLOCA)
+! #        -if [ -f $(RANLIB) ]; then $(RANLIB) libreadline.a; fi
+  
+  readline.o:     readline.c readline.h chardefs.h  keymaps.h history.h vi_mode.c
+  	$(CC) -c $(CFLAGS) $(CPPFLAGS) $(READLINE_DEFINES) $*.c
+diff -cwr src.ori/readline/readline.c src/readline/readline.c
+*** src.ori/readline/readline.c	Fri Jul  9 00:16:20 1993
+--- src/readline/readline.c	Sat Jul 24 03:46:48 1993
+***************
+*** 30,35 ****
+--- 30,36 ----
+  static char *xmalloc (int ), *xrealloc (void *, int );
+  #endif
+  
++ #include <io.h>
+  #include <stdio.h>
+  #include <string.h>
+  #include <sys/types.h>
+***************
+*** 36,41 ****
+--- 37,43 ----
+  #include <fcntl.h>
+  #include <sys/file.h>
+  #include <signal.h>
++ #include <process.h>
+  
+  #ifdef __GNUC__
+  #define alloca __builtin_alloca
+***************
+*** 181,187 ****
+  
+  /* This typedef is equivalent to the one for Function; it allows us
+     to say SigHandler *foo = signal (SIGKILL, SIG_IGN); */
+! #ifdef HPUX
+  /*
+   HPUX type:
+   void (*signal(int sig, void (*action)(int)))(int);
+--- 183,189 ----
+  
+  /* This typedef is equivalent to the one for Function; it allows us
+     to say SigHandler *foo = signal (SIGKILL, SIG_IGN); */
+! #if defined(HPUX) || defined(__EMX__)
+  /*
+   HPUX type:
+   void (*signal(int sig, void (*action)(int)))(int);
+***************
+*** 301,308 ****
+--- 303,312 ----
+     parser directives. */
+  static unsigned char parsing_conditionalized_out = 0;
+  
++ #ifndef __STDC__
+  /* Caseless strcmp (). */
+  static int stricmp (char *, char *), strnicmp (char *, char *, int );
++ #endif
+  
+  /* Non-zero means to save keys that we dispatch on in a kbd macro. */
+  static int defining_kbd_macro = 0;
+***************
+*** 578,584 ****
+  /* Handle an interrupt character. */
+  static sighandler
+  rl_signal_handler (int sig
+! #ifndef HPUX
+  , int code, struct sigcontext *scp
+  #endif
+  )
+--- 582,588 ----
+  /* Handle an interrupt character. */
+  static sighandler
+  rl_signal_handler (int sig
+! #if !defined(HPUX) && !defined(__EMX__)
+  , int code, struct sigcontext *scp
+  #endif
+  )
+***************
+*** 606,611 ****
+--- 610,619 ----
+        rl_clean_up_for_exit ();
+        rl_deprep_terminal ();
+        rl_clear_signals ();
++ #ifdef __EMX__
++       /* EMX won't recognize any further signals until this */
++       signal (sig, SIG_ACK);
++ #endif
+        rl_pending_input = 0;
+  
+        kill (getpid (), sig);
+***************
+*** 2448,2454 ****
+--- 2456,2467 ----
+  
+    readline_echoing_p = (tio.c_lflag & ECHO);
+  
++ #ifdef __EMX__
++   /* EMX requires IDEFAULT off as well, for O_NDELAY to work */
++   tio.c_lflag &= ~(IDEFAULT|ICANON|ECHO);
++ #else
+    tio.c_lflag &= ~(ICANON|ECHO);
++ #endif
+  
+  #if defined (IXANY)
+    tio.c_iflag &= ~(IXON|IXOFF|IXANY);
+***************
+*** 2493,2499 ****
+--- 2506,2514 ----
+    tcflow (tty, TCOON);		/* Simulate a ^Q. */
+  #else
+    ioctl (tty, TCSETAW, &tio);
++ #ifdef TCXONC
+    ioctl (tty, TCXONC, 1);	/* Simulate a ^Q. */
++ #endif
+  #endif /* POSIX */
+  
+  #if defined (_POSIX_VERSION)
+***************
+*** 2528,2534 ****
+--- 2543,2551 ----
+    tcflow (tty, TCOON);		/* Simulate a ^Q. */
+  #else
+    ioctl (tty, TCSETAW, &otio);
++ #ifdef TCXONC
+    ioctl (tty, TCXONC, 1);	/* Simulate a ^Q. */
++ #endif
+  #endif /* POSIX */
+  
+  #if defined (_POSIX_VERSION)
+***************
+*** 5836,5841 ****
+--- 5853,5859 ----
+  
+  /* Whoops, Unix doesn't have strnicmp. */
+  
++ #ifndef __STDC__    /* but Standard C libs do! */
+  /* Compare at most COUNT characters from string1 to string2.  Case
+     doesn't matter. */
+  static int
+***************
+*** 5869,5874 ****
+--- 5887,5893 ----
+      }
+    return (*string1 | *string2);
+  }
++ #endif
+  
+  /* Determine if s2 occurs in s1.  If so, return a pointer to the
+     match in s1.  The compare is case insensitive. */
+***************
+*** 5903,5910 ****
+      {
+        result = read (fileno (stream), &c, sizeof (char));
+  
+!       if (result == sizeof (char))
+  	return (c);
+  
+        if (errno != EINTR)
+  	return (EOF);
+--- 5922,5964 ----
+      {
+        result = read (fileno (stream), &c, sizeof (char));
+  
+!       if (result == sizeof (char)) {
+! #ifdef __EMX__
+! 	/* for emx: remap scan codes for cursor keys */
+! 	if( c == 0 ) {
+! 	    /* scan code should always be there! */
+! 	    (void)read (fileno (stream), &c, sizeof (char));
+! 	    switch( c ){
+! 		case 75:  /* left, map to ^B */
+! 		    c=2;
+! 		    break ;
+! 		case 77:  /* right, map to ^F */
+! 		    c=6;
+! 		    break ;
+! 		case 115: /* ctrl left */
+! 		case 71:  /* home, map to ^A */
+! 		    c=1;
+! 		    break ;
+! 		case 116: /* ctrl right */
+! 		case 79:  /* end, map to ^E */
+! 		    c=5;
+! 		    break ;
+! 		case 72:  /* up, map to ^P */
+! 		    c=16;
+! 		    break ;
+! 		case 80:  /* down, map to ^N */
+! 		    c=14;
+! 		    break ;
+! 		case 83:  /* delete, map to ^D */
+! 		    c=4;
+! 		    break ;
+! 		default:  /* ignore */
+! 		    c=0;
+! 	    }
+! 	}
+! #endif  /*EMX*/
+  	return (c);
++       }
+  
+        if (errno != EINTR)
+  	return (EOF);
+Only in src/readline: readline.o
+Only in src/readline: readln.c
+Only in src: readline.o
+diff -cwr src.ori/setshow.c src/setshow.c
+*** src.ori/setshow.c	Fri Jul  9 00:16:22 1993
+--- src/setshow.c	Sat Jul 31 02:18:38 1993
+***************
+*** 7,12 ****
+--- 7,16 ----
+  #ifndef NOUNISTD_H
+  #include <unistd.h>
+  #endif
++ #ifdef __EMX__
++ #include <stdlib.h>
++ #endif
++ #include <process.h>
+  
+  #include "fudgit.h"
+  #include "symbol.h"
+***************
+*** 13,19 ****
+  #include "macro.h"
+  #include "code.h"
+  #include "math.tab.h"
+! #include "functions.h"
+  #include "head.h"
+  
+  /* All the global internal variables  */
+--- 17,35 ----
+  #include "macro.h"
+  #include "code.h"
+  #include "math.tab.h"
+! /* 
+!  * [aci 31-Jul-93]:  Discovered Ft_Tmp was declared as char*
+!  *   in setshow.h when it is actually char []!  This was causing
+!  *   a silent "crash" at exit time when I tried to use the
+!  *   value of Ft_Tmp to delete temp files -- when the static
+!  *   address was dereferenced as a pointer, it caused a SIGSEGV
+!  *   signal which was silently caught and exited the program.
+!  *   I only noticed because the history file wasn't being written.
+!  *   (The moral is obviously to always #include the .h file in the
+!  *   file where the variables/functions are actually declared.
+!  */
+! /* #include "functions.h" -- already included by setshow.h */
+! #include "setshow.h"
+  #include "head.h"
+  
+  /* All the global internal variables  */
+***************
+*** 106,118 ****
+--- 122,154 ----
+  	sym->u.str = Ft_ReadFile;
+      sprintf(Ft_ReadFile, "none");
+      sym = Ft_lookup("Tmp");
++ #ifndef __EMX__
+      sprintf(Ft_Tmp, "/tmp/fudgit%d", getpid());
++ #else
++     /* [aci 31-Jul-93]
++      *   Let user specify location for temp files with TEMP/TMP,
++      *   or default to current directory at start up.
++      *   Also restrict temp filenames for DOS name limits.
++      */
++     {
++ 	char drive[_MAX_DRIVE], dir[_MAX_DIR], fname[_MAX_FNAME];
++ 
++ 	if (!(cp=getenv("TEMP")) && !(cp=getenv("TMP"))) cp=Ft_Cwd;
++ 	_splitpath(cp, drive, dir, NULL, NULL);
++ 	sprintf(fname, "fudg%d", getpid());
++ 	_makepath(Ft_Tmp, drive, dir, fname, NULL);
++     }
++ #endif
+  	sym->u.str = Ft_Tmp;
+      if ((cp = getenv("PAGER")))
+  	sprintf(Ft_Pager, "%s", cp);
+      else
+  	sprintf(Ft_Pager, "%s", DEFPAGER);
++ #ifndef __EMX__
+      if ((cp = getenv("SHELL")))
++ #else
++     if ((cp = getenv("COMSPEC")))
++ #endif
+  	sprintf(Ft_Shell, "%s", cp);
+      else
+  	sprintf(Ft_Shell, "%s", DEFSHELL);
+***************
+*** 119,126 ****
+--- 155,179 ----
+      if ((cp = getenv("HOME")))
+  	sprintf(Ft_Home, "%s", cp);
+      else {
++ #ifndef __EMX__
+  	fputs("Fatal: Could not find home directory!\n", stderr);
+  	Ft_exit(1);
++ #else
++ 	/*
++ 	 *  DOS & OS/2 aren't (usually) multi-user, so don't complain.
++ 	 *  Instead, use the directory where the executable is located
++ 	 *  if possible or else the current directory.
++ 	 */
++ 	char drive[_MAX_DRIVE], dir[_MAX_DIR];
++ 	extern char *Ft_Progname;
++ 
++ 	_splitpath(Ft_Progname, drive, dir, NULL, NULL);
++ 	if (dir[0]) {
++ 	    _makepath(Ft_Home, drive, dir, NULL, NULL);
++ 	    Ft_Home[strlen(Ft_Home)-1]=0;   /* remove trailing \ */
++ 	} else
++ 	    sprintf(Ft_Home, "%s", Ft_Cwd);
++ #endif
+      }
+      sprintf(Ft_Format, "%s", FORMAT);
+      sprintf(Ft_TFormat, "\t%s", FORMAT);
+***************
+*** 134,139 ****
+--- 187,196 ----
+  	    Ft_exit(1);
+  	}
+      }
++ #ifdef __EMX__
++     /* Search PATH to find program, if not given abs path. */
++     if (_path(Ft_Plotting[0], PLOTTING))
++ #endif
+      sprintf(Ft_Plotting[0], "%s", PLOTTING);
+      Ft_Plotting[1][0] = '\0';
+      Ft_Comchar = '#';
+diff -cwr src.ori/setshow.h src/setshow.h
+*** src.ori/setshow.h	Fri Jul  9 00:16:22 1993
+--- src/setshow.h	Sat Jul 31 02:19:48 1993
+***************
+*** 11,17 ****
+  extern int Ft_Iter;
+  extern int Ft_Mode;
+  extern int Ft_Expandhist;
+! extern char *Ft_Tmp;
+  extern char *Ft_File;
+  extern char Ft_Shell[];
+  extern char Ft_Pager[];
+--- 11,17 ----
+  extern int Ft_Iter;
+  extern int Ft_Mode;
+  extern int Ft_Expandhist;
+! extern char Ft_Tmp[];
+  extern char *Ft_File;
+  extern char Ft_Shell[];
+  extern char Ft_Pager[];
+Only in src: setshow.o
+Only in src: sp.ovl
+Only in src: spline.o
+Only in src: strings.o
+Only in src: svdfit.o
+Only in src: vgetargp.o

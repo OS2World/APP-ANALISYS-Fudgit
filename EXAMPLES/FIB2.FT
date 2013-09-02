@@ -1,0 +1,16 @@
+# Other versions to test procedures
+cmode
+	proc fib3(x) {
+		for(a=0,b=1;b<x;c=b,b=b+a,a=c) {
+			print b, "\n"
+		}
+	}
+	proc fib2(x) {
+		auto a,b,c
+
+		for(a=0,b=1;b<x;c=b,b+=a,a=c) {
+			print b, "\n"
+		}
+	}
+fmode
+

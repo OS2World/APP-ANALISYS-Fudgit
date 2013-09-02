@@ -1,0 +1,19 @@
+# Note: On IRIX, the loader requires code compiled with the -G 0 option.
+# Comment out `-G 0' on SunOS
+CFLAGS = -O # -G 0
+FFLAGS = -O -G 0
+CC = gcc
+
+all: mymodule.o mysubs.o legnomia.o
+
+conly: mymodule.o legnomia.o
+
+mymodule.o: mymodule.c 
+
+mysubs.o: mysubs.f
+
+legnomia.o: legnomia.c 
+
+clean:
+	rm -f *.ld *.o core
+

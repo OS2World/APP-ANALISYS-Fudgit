@@ -1,0 +1,129 @@
+###########################
+# EMX/GCC Makefile modified from:
+#   Linux Makefile for FUDGIT
+# by Andrew Innes, 12-Jul-93
+# Try to get a version working for DOS (and OS/2).
+# Test version to try dynamic loading.
+###########################
+#
+# macro definitions
+# Linker flags
+LDFLAGS = -Lreadline -lreadline -ltermc #-g
+OPT = -O
+# Final compiling flags
+#FCFLAGS = $(OPT)
+# The following is for EMX/GCC
+CFLAGS = $(OPT) -Wall -DVOID_SIGHANDLER -DNOMALLINFO #-g
+EXTRADEFS = -DNOGAMMA -DINCL_STATS -DNOBESSEL -DNORAND -DNOHYP_TRIGO \
+	    -DIEEE_NAN
+DL = -DDL_YES  # define DL_YES to include dynamic loading
+
+# You should not need to edit anything below that line
+OBJECTS = mathparse.o fudgit.o alloc.o setshow.o vgetargp.o plot.o \
+	fits.o fit.o svdfit.o medfit.o help.o mrqmin.o \
+	command.o code.o math.o lexi.o init.o fft.o macro.o minit.o \
+	spline.o readline.o chd.o if.o strings.o extramath.o \
+	dld/libdl.a dld/libdld.a
+
+# The default shell
+SHELL = /bin/sh
+# Default compiler
+CC = gcc
+YFLAGS = -d
+DATE = "Tue Apr 13 14:11:08 EDT 1993" #`cat ../Date`
+VERSION = "2.31" #`cat ../Version`
+HELPFILE = "fudgit.hlp"
+
+all: fudgit.exe
+
+fudgit.exe: $(OBJECTS) readline/libreadline.a
+	$(CC) -o $@ $(OBJECTS) $(LDFLAGS)
+	emxbind -a fudgit.exe -ac -p   #set emx options
+
+# aci 29-Jul-93: Leave executable in a.out format for dld
+#fudgit: $(OBJECTS) readline/libreadline.a
+#        $(CC) -o $@ $(OBJECTS) $(LDFLAGS)
+
+math.tab: y_tab.h
+	cat y_tab.h | sed s/yy/Ft_mathyy/g > math.tab
+
+y_tab.h: mathparse.o
+
+readline/libreadline.a: 
+	(cd readline; make $(READLINE) )
+
+dld/libdld.a:
+	(cd dld; make)
+
+dld/libdl.a:
+	(cd dld/dl; make)
+
+chd.o : chd.c fudgit.h head.h 
+
+code.o : code.c symbol.h code.h math.tab fudgit.h head.h 
+	$(CC) -c $(CFLAGS) $(POP) code.c
+
+command.o : command.c symbol.h code.h macro.h math.tab fudgit.h setshow.h \
+  functions.h help.h command.h readline/history.h head.h install.c
+	$(CC) $(CFLAGS) $(DL) -c $<
+
+extramath.o : extramath.c
+	$(CC) $(CFLAGS) $(EXTRADEFS) -c $<
+
+fft.o : fft.c symbol.h code.h math.tab fudgit.h setshow.h functions.h \
+	dalloca.h head.h 
+
+fit.o : fit.c head.h 
+
+fits.o : fits.c symbol.h code.h math.tab fudgit.h setshow.h functions.h head.h 
+
+fudgit.o : fudgit.c fudgit.h macro.h head.h setshow.h functions.h 
+	$(CC) $(CFLAGS) -DDATE=$(DATE) -DVERSION=$(VERSION) -c $<
+
+help.o : help.c help.h fudgit.h command.h  help.c
+	$(CC) $(CFLAGS) -DHELPFILE=$(HELPFILE) -c help.c
+
+if.o : if.c fudgit.h head.h 
+
+init.o : init.c fudgit.h symbol.h code.h math.tab head.h 
+	$(CC) $(CFLAGS) $(EXTRADEFS) -c $<
+
+lexi.o : lexi.c symbol.h code.h math.tab fudgit.h head.h 
+
+macro.o : macro.c fudgit.h macro.h setshow.h functions.h readline/history.h \
+  head.h symbol.h code.h math.tab 
+
+math.o : math.c fudgit.h head.h symbol.h 
+	$(CC) $(CFLAGS) $(EXTRADEFS) -c $<
+
+# aci 14-Jul-93:  separate mathparse.o/.c as two targets
+mathparse.o : mathparse.c symbol.h code.h
+
+mathparse.c : parse.y
+	yacc $(YFLAGS) parse.y
+	cat y_tab.c | sed s/yy/Ft_mathyy/g > mathparse.c
+	rm y_tab.c
+#        $(CC) $(OPT) -c mathparse.c
+
+medfit.o : medfit.c dalloca.h head.h 
+
+minit.o : minit.c fudgit.h setshow.h functions.h macro.h head.h 
+
+mrqmin.o : mrqmin.c dalloca.h head.h 
+
+plot.o : plot.c fudgit.h setshow.h functions.h macro.h head.h command.h 
+
+readline.o : readline.c fudgit.h command.h macro.h head.h 
+
+setshow.o : setshow.c fudgit.h symbol.h macro.h code.h math.tab functions.h \
+  head.h 
+
+spline.o : spline.c fudgit.h dalloca.h head.h 
+
+strings.o : strings.c fudgit.h head.h 
+
+strstr.o : strstr.c 
+
+svdfit.o : svdfit.c dalloca.h head.h 
+
+vgetargp.o : vgetargp.c fudgit.h macro.h symbol.h code.h math.tab head.h 

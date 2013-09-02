@@ -1,0 +1,26 @@
+# Print fibonacci numbers
+cmode
+	proc fib(x) { 
+    	a = 0 
+    	b = 1 
+    	while (b < x) { 
+			print b, "\n"
+        	c = b 
+        	b += a 
+        	a = c 
+    	} 
+	} 
+	
+	proc fib2(x) {
+		auto a,b,c
+
+		for(a=0,b=1;b<x;c=b,b+=a,a=c) {
+			print b, "\n"
+		}
+	}
+	
+	i=1
+	while (i++<10) {
+		fib(1000)
+	}
+fmode

@@ -1,0 +1,72 @@
+echo
+echo Salut P\'a!!
+echo
+macro efitp!lot 4
+	save vector $1 $2 $3 $4 $Tmp.fit
+	!sync
+	pmode plot '$Tmp.fit' us 1:4 wi li, '$Tmp.fit' us 1:2:3 wi err
+stop
+macro fitp!lot 2
+	save vector $1 $2 $2FIT $Tmp.fit
+	!sync
+	pmode plot '$Tmp.fit' us 1:2, '$Tmp.fit' us 1:3 wi li
+stop
+macro egnu!plot 3
+	save vector $1 $2 $3 $Tmp.2
+	!sync
+	pmode plot '$Tmp.2' us 1:2:3 wi err
+stop
+macro rgnu!plot 2
+	save vector $1 $2 $Tmp.2
+	!sync
+	pmode replot '$Tmp.2' wi li
+stop
+macro pv 1 
+	show vec $1 # show vectors
+stop
+macro Cd 1
+	cd $1
+	pmode cd '$1'
+stop
+macro fl!ip 0
+	pmode
+
+	fmode
+stop
+macro sqpost 1
+    pmode set size 0.7,0.92
+    pmode set term post port 'Helvetica-Bold'
+    pmode set outp '$1'
+    pmode rep
+    x11
+    pmode rep
+stop
+macro post 1
+    pmode set size 0.7,1.0
+    pmode set term post port 'Helvetica-Bold'
+    pmode set outp '$1'
+    pmode rep
+    x11
+    pmode rep
+stop
+macro postadj 1
+    pmode set size 0.7,1
+    pmode set term post port 'Helvetica-Bold'
+    pmode set outp '$1'
+stop
+macro fig 1
+    pmode set size 0.7,1
+    pmode set term bfig
+    pmode set outp '$1'
+stop
+macro x11  0
+    pmode set term X11
+    pmode set size 1,1
+stop
+alias date	!date
+alias mv	!mv -i
+alias cp	!cp -i
+alias rm	!rm -i
+alias m		!more -c
+alias clear	!clear
+alias sh 	show

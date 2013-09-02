@@ -1,0 +1,102 @@
+So far, dynamic loading option is supported by IRIX, ULTRIX (on vax)
+and SUNOS.
+
+This contains short examples of dynamic loading.  Note that install
+does not check for the source to be compiled. The user is responsible
+for compiling the object.
+
+In C:
+On IRIX, you must compile mymodule.c using -G 0 absolutely.
+(Edit the Makefile to take care of this.)
+
+cc -G 0 -O -c mymodule.c
+
+Read the script mymodule.ft and the program mymodule.c for more detail.
+
+In FORTRAN:
+On IRIX, you must compile mysubs.f using -G 0 absolutely.
+(Edit the Makefile to take care of this.)
+
+f77 -G 0 -O -c mysubs.f
+
+Read the script mysubs.ft and the program mysubs.f for more detail.
+File mysubs.libs is an example of how to proceed to link/load external
+libraries.
+
+-------------------------------------------------------------------
+
+The following NOTES are adapted sections of the man pages of 'dl'
+package. Read carefully the part on linking with extra libraries (G0).
+This applies to IRIX  O N L Y!
+
+----
+
+     If there is a file with the same name as  the  object  file,
+     but  with  extension  .libs  this file is assumed to contain
+     command-line options to ld(1).  This feature can be used  if
+     the  object  needs  to be linked with special libraries, for
+     instance.
+
+     Because linking the object is a fairly  time-consuming  pro-
+     cess the resulting binary is cached with extension .ld . The
+     version stamp of the cached binary is set on a  number  com-
+     puted  from  the time stamps of both the object file and the
+     running  executable.   Before  linking   'install'   checks
+     whether  a cached binary exists and whether the load address
+     and version stamp match the required values. If so, it skips
+     the link phase.
+
+     If there is no cached binary or if  the  version  stamp  and
+     load  address do not match 'install' attempts to create the
+     cached binary. If it cannot do this, due to lack of  permis-
+     sion,  for  instance,  it  will create a temporary binary in
+     /usr/tmp .
+
+NOTES
+     The object file (and all libraries used) should be  compiled
+     with the -G 0 flag. The linker could probably check this but
+     does not, unfortunately. Not compiling your subroutine  with
+     -G  0 or using a library that is not compiled with -G 0 will
+     result in wondrous and deeply  puzzling  results  from  your
+     program.  SGI  provides  versions  of all libraries compiled
+     with -G 0,  these have a _G0 suffix,  as in -lc_G0.   Shared
+     libraries are also safe.
+
+     Using a set of routines that uses global data  (like  stdio)
+     will work, whether the routines are used in the main execut-
+     able or not.  What will not work, however,  is  using  some-
+     thing  like stdio in more than one dynamically loaded module
+     when it is not used in the  main  executable  (because  each
+     dynamic module will have its own copy of the global data).
+
+     There  may  be  other  subtleties   involved   with   shared
+     libraries,  global  data  structures  or other features like
+     sproc(2) that I am not aware of.
+
+     Although the package has  support  for  incremental  loading
+     this  does not work currently, due to ld(1) refusing to take
+     the output of an incremental link as the  input  to  another
+     incremental link.
+
+BUGS
+     The algorithm used to locate unused virtual memory may  fail
+     if  the program does mmap(2) or shmat(2) calls. 
+
+     Temporary binaries created in /usr/tmp are only  removed  if
+     FUDGIT exits normally.
+
+     Incremental loading is a bit of a hack: the  loaded  modules
+     are  patched  to  remove  definitions  of  _end,  _etext and
+     _edata. This might affect some programs adversely since  the
+     value  of  those  symbols  will  be  different  in different
+     modules.
+
+     Error messages issued by the  ldfcn(3)  library  or  by  the
+     linker  always end up on stderr.
+
+FILES
+     object.o
+     object.dl
+     object.libs
+
+

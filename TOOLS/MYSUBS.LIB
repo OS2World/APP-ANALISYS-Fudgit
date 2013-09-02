@@ -1,0 +1,2 @@
+/usr/lib/libF77.a
+# Wrong example on IRIX: This should be a G0 or a shared library.

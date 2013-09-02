@@ -1,0 +1,22 @@
+# This file defines a function computing the average of a vector
+cmode
+    func avg(X) {
+        auto i,x
+
+        for (x=0,i=1;i<=data;i++) {
+            x += X[i]
+        }
+        return(x/data)
+    }
+fmode
+# The following is equivalent
+cmode
+	func avg2(X) {
+		auto x, i=1		# By default x is 0
+
+		while (i <= data) {
+			x += X[i++]
+		}
+		return (x/data)
+	}
+fmode

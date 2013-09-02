@@ -1,0 +1,169 @@
+# Plot temperature dependence of epsilon
+# fitting preamble
+pmode
+	# set term uniterm
+	# set term X11
+	# set term postscript
+	# set output 'fig.ps'
+	# set size 3.5/5.0, 3.5/3.5
+	set grid
+	set nokey
+	set data style line
+	# set xrange [0:1.1]
+	set auto
+	set format '% .1lf'
+	set polar
+fmode
+# define variables
+let tc = -2.0/ln(sqrt(2)-1)
+set data 500
+
+# A macro to take rough derivative 
+# Syntax deriv X Y
+# creates vector DY
+macro deriv 2
+	cmode
+		for (i=2;i<data;i++) {
+			D$2[i] = ($2[i+1] - $2[i-1])/($1[i+1] - $1[i-1])
+		}
+		D$2[1] = D$2[2]
+		D$2[data] = D$2[data-1]
+	fmode
+stop
+
+# build angular vectors from 0 to pi/2
+cmode
+	n=1
+	tmp = data + 1
+	PHI = n++/tmp
+	PHI *= pi/2
+	THETA = PHI
+	CF = cos(PHI)
+	CF2 = CF^2
+	C2F = cos(2 * PHI)
+	C2F2 = C2F^2
+	SF = sin(PHI)
+	SF2 = SF^2
+	S2F = sin(2 * PHI)
+	S2F2 = S2F^2
+fmode
+
+# polar vector WULF to be minimized
+# with the following cmode function
+cmode
+	func minim(x, y) {
+		if (x < y) {
+			return(x)
+		}
+		return(y)
+	}
+fmode
+			
+# define macro for temperature dependence
+macro phimake 2
+	echo Doing T = $1
+	cmode
+	# build scalars
+		tt = $1
+		t = tt*tc
+		x = exp(-2/t)
+		x2 = x * x
+		dx = -2 * x
+		a = (1 + x2)^2
+		a2 = a^2
+		da = -8 * x2 * (1 + x2)
+		p = 2 * x * (1 - x2)
+		p2 = p^2
+		dp = -4 * x * (1 - 3 * x2)
+	# build vectors
+		B = sqrt(0.25 * a2 * S2F2 + p2 * C2F2)
+		DB = (0.25 * a * da * S2F2 + p * dp * C2F2)/B
+		NUM1 = (a2 * SF2 + p2 * C2F)
+		DNM1 = (a * SF2 + B)
+		AL1 = acosh(NUM1/(DNM1 * p))
+		NUM2 = (a2 * CF2 - p2 * C2F)
+		DNM2 = (a * CF2 + B)
+		AL2 = acosh(NUM2/(DNM2 * p))
+		DNUM1 = 2 * (a * da * SF2 + p * dp * C2F)
+		DDNM1 = (da * SF2 + DB)
+		DNUM2 = 2 * (a * da * CF2 - p * dp * C2F)
+		DDNM2 = (da * CF2 + DB)
+		TMP1 = (DNUM1 * DNM1 - NUM1 * DDNM1)/(DNM1 * DNM1)
+		TMP2 = (DNUM2 * DNM2 - NUM2 * DDNM2)/(DNM2 * DNM2)
+		DAL1 = (TMP1 - dp * cosh(AL1))/(p * sinh(AL1))
+		DAL2 = (TMP2 - dp * cosh(AL2))/(p * sinh(AL2))
+		S = (AL1 * SF + AL2 * CF) * t
+		E = DAL1 * SF + DAL2 * CF
+	# build Wulff vector
+		WULF = S
+		for (i=1;i<=data;i++) {
+			for (j=1;j<=data;j++) {
+				TMP[j] = S[j]/cos(PHI[i] - THETA[j])
+				WULF[i] = minim(WULF[i], TMP[j])
+			}
+		}
+	fmode
+	# take derivative -> creates vector DWULF
+	deriv PHI WULF
+	# recalculate E(BETA) to average
+	cmode
+		BETA = PHI - atan(DWULF/WULF)
+		CA = cos(BETA)
+		CA2 = CA^2
+		C2A = cos(2 * BETA)
+		C2A2 = C2A^2
+		SA = sin(BETA)
+		SA2 = SA^2
+		S2A = sin(2 * BETA)
+		S2A2 = S2A^2
+		B = sqrt(0.25 * a2 * S2A2 + p2 * C2A2)
+		DB = (0.25 * a * da * S2A2 + p * dp * C2A2)/B
+		NUM1 = (a2 * SA2 + p2 * C2A)
+		DNM1 = (a * SA2 + B)
+		AL1 = acosh(NUM1/(DNM1 * p))
+		NUM2 = (a2 * CA2 - p2 * C2A)
+		DNM2 = (a * CA2 + B)
+		AL2 = acosh(NUM2/(DNM2 * p))
+		DNUM1 = 2 * (a * da * SA2 + p * dp * C2A)
+		DDNM1 = (da * SA2 + DB)
+		DNUM2 = 2 * (a * da * CA2 - p * dp * C2A)
+		DDNM2 = (da * CA2 + DB)
+		TMP1 = (DNUM1 * DNM1 - NUM1 * DDNM1)/(DNM1 * DNM1)
+		TMP2 = (DNUM2 * DNM2 - NUM2 * DDNM2)/(DNM2 * DNM2)
+		DAL1 = (TMP1 - dp * cosh(AL1))/(p * sinh(AL1))
+		DAL2 = (TMP2 - dp * cosh(AL2))/(p * sinh(AL2))
+		EOFB = DAL1 * SA + DAL2 * CA
+		tote = totl = 0
+		for (i=1;i<=data;i++) {
+			tote += WULF[i] * EOFB[i]
+			totl += WULF[i]
+		}
+		tote /= totl
+	fmode
+	save vec PHI E S WULF BETA $Tmp.$2
+	append var tt tote ener.wulf
+stop
+
+# make a few
+! rm -f ener.wulf
+phimake 0.01   0
+let temperature = 0.1
+let plotnum = 1
+while (temperature <= 0.9)
+	phimake $temperature    $plotnum
+	let plotnum++
+	let temperature+=0.1
+end
+phimake 0.95  10
+!sync
+
+pmode
+#	plot '$Tmp.0', '$Tmp.1', '$Tmp.2', '$Tmp.3' , '$Tmp.4', '$Tmp.5'
+#	plot '$Tmp.0' us 1:3, '$Tmp.1' us 1:3, '$Tmp.2' us 1:3, \
+#	'$Tmp.3' us 1:3, '$Tmp.4' us 1:3, \
+#	'$Tmp.0', '$Tmp.1', '$Tmp.2', '$Tmp.3' , '$Tmp.4'
+	plot '$Tmp.0' us 1:3, '$Tmp.0' us 1:4,\
+	'$Tmp.4' us 1:3, '$Tmp.4' us 1:4,\
+	'$Tmp.7' us 1:3, '$Tmp.7' us 1:4
+fmode
+

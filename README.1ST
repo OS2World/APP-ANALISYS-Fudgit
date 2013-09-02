@@ -1,0 +1,283 @@
+
+
+
+
+
+
+			    RELEASE NOTES
+			       for the
+		   386/DOS and OS/2 port of FUDGIT
+
+			     31 July 1993
+
+
+OVERVIEW
+
+This is a port of the general purpose data analysis and curve fitting
+program "Fudgit" to 386/DOS and OS/2 2.x using the EMX/GCC compiler
+and run-time environment.  Note that the compiler is *not* required to
+use Fudgit, unless you want to either recompile the program itself, or
+make use of the dynamic loading facility to access external functions
+in separately compiled object modules.
+
+Under OS/2 2.x, all of the features of Fudgit including "pmode" (a
+direct interface to the plotting package of your choice, normally
+gnuplot) should operate as intended.  Under DOS, pmode and other
+similar features, such as piping long output through a pager, are
+inoperative but the remainder of the functionality is unaffected.
+
+It is also possible to use Fudgit with RSX, an alternative 386/DOS
+extender based on the DPMI protocol which EMX does not support.  Most
+notably, this allows you to run Fudgit in a DOS box under Windows 3.x
+enhanced mode which normal EMX programs cannot do.  See the Additional
+Information section for more detail.
+
+
+CONTENTS
+
+The Fudgit/EMX package you received should contain the following
+files:
+
+     FUDGIT/README.1ST	      => This file.
+     FUDGIT/README	      => The README for Fudgit.
+     FUDGIT/FUDGIT.BAT	      => DOS batch file to run Fudgit.
+     FUDGIT/FUDGIT.CMD	      => OS/2 version of fudgit.bat.
+     FUDGIT/FUDGIT.EXE	      => Fudgit (DOS & OS/2).
+     FUDGIT/FUDGIT.HLP	      => The on-line manual/reference.
+     FUDGIT/FUDGIT.PS	      => Manual in PostScript (90 pages).
+     FUDGIT/EMXRT.ZIP	      => The EMX run-time package.
+     FUDGIT/MAKEFILE.EMX      => Makefile for compiling Fudgit.
+     FUDGIT/FUDG_EMX.DIF      => Source diffs for EMX/GCC.
+     FUDGIT/EXAMPLES/*.*      => Various macros, cmode functions.
+     FUDGIT/TOOLS/*.*	      => Dynamically loadable functions.
+
+
+The file README contains a quick overview of Fudgit, while FUDGIT.HLP
+contains the full reference manual for Fudgit, as well as a tutorial.
+A PostScript version of the manual is included that is 90 pages long.
+
+
+INSTALLATION
+
+First, read the installation notes for the EMX run-time package (if
+you don't already have EMX installed on your system), included as
+readme.doc in EMXRT.ZIP (taken from the recent emx-0.8g release).
+
+Before you run Fudgit, you need to set up a few things for it to work
+properly, or at least optimally.  In particular, you need to define
+the following environment variables:
+
+     set TERM=mono
+     set TERMCAP=c:/emx/termcap.dat
+     set FUDGITHELP=c:/fudgit/fudgit.hlp
+
+The first two are essential to tell Fudgit how to write to the screen
+during command line editing, while the third variable points to the
+location of the on-line help file -- I highly recommend that this be
+set properly!  The paths can use either forward or backward slashes.
+
+Some other environment variables you may wish to set are:
+
+     set PAGER=c:/os2/more.com // for OS/2 (don't set this for DOS)
+     set HOME=c:/fudgit        // place for "fudgit.rc" init file
+			       // also the command history file
+     set TEMP=c:/tmp	       // (or TMP) -- a place for temp files
+
+On start-up, Fudgit looks in the "home" directory for a Fudgit command
+file called "fudgit.rc", typically used to define standard macros or
+aliases that you will use frequently, and non-default option settings.
+For example, if you use a plotting package other than gnuplot (or if
+it is not in the search path), you can specify the program to use
+together with any options it may need.	(This only applies to OS/2
+users; pmode is inoperative under DOS.)  If you don't specify HOME,
+then the directory where fudgit.exe is located will be used.  TEMP
+will default to the current directory when you start Fudgit.
+
+For those who know what they are doing, the above information should
+suffice; simply set the environment variables and put the executables
+(fudgit.exe and emx.exe/emx*.dll) somewhere in your search path.  For
+the more faint-hearted, I have included command files with default
+settings (fudgit.bat and fudgit.cmd, for DOS and OS/2 respectively)
+that can be used "straight out of the box" by following these
+instructions:
+
+     1.   Unpack all the files in fudg_emx.zip (use the "-d" option to
+	  create the subdirectories contained in the zip file).  By
+	  default, it will unpack into "fudgit\...".  For example:
+	       cd \
+	       pkunzip -d fudg_emx   // creates \fudgit\...
+
+     2.   If you don't already have the EMX run-time (version 0.8g)
+	  installed, then unpack emxrt.zip (using the "-d" option).
+	  For example:
+	       cd \
+	       pkunzip -d \fudgit\emxrt  // creates \emx\...
+
+	  Add "\emx\bin" to your PATH (and "\emx\dll" to your LIBPATH
+	  for OS/2).  Under DOS, PATH should be set in autoexec.bat,
+	  while config.sys is the place to look under OS/2.
+
+	  NOTE:
+
+	  If you have an older version of EMX installed, say version
+	  0.8f or 0.8e, then you will need to upgrade (as recommended
+	  by the author of EMX).  Under OS/2, the new .dll files can
+	  safely replace older files of the same name.	Under DOS
+	  however, the version of emx.exe must match the version of
+	  EMX/GCC which linked the program, so it is probably easiest
+	  to simply bind the correct version of emx.exe to fudgit.exe
+	  as follows:
+	       cd \fudgit
+	       \emx\bin\emxbind -u \emx\bin\emx fudgit
+	  You may then want to remove \emx\bin from your PATH.
+
+     3.   If necessary, edit a copy of the supplied batch file
+	  ("fudgit.bat" for DOS, "fudgit.cmd" for OS/2) to set the
+	  environment variables to the directories you have chosen in
+	  steps 1 and 2.  Later on, when you are used to using Fudgit,
+	  you can make additional definitions, for instance to set
+	  EMXOPT or EMX (see readme.doc from emxrt.zip).
+
+     4.   Move/copy the batch file to a directory in your PATH (for
+	  example "\bin", if you have such a directory).
+
+Fudgit should now be ready to run (remember to reboot if necessary
+when using OS/2 so that the change to LIBPATH takes effect).  Try it
+and see: if you see the Fudgit banner and prompt, great! -- type
+"help" and proceed from there.	If it doesn't work, make sure you have
+followed the previous steps correctly, and that you understand how the
+EMX run-time package works (DOS users take note of the discussion
+about 386 memory managers/DPMI/VCPI/etc) before you give up.  As a
+last resort, you can contact me (preferably by email); my address is
+at the end of this document.
+
+Hopefully, this procedure will be sufficient to get you started.
+There are some examples of macros, functions, and so forth in
+"\fudgit\examples\*.*" which are useful to study, as well as the
+examples in the manual (on-line help).	Enjoy!
+
+
+ADDITIONAL INFORMATION
+
+This section documents some additional features that are not necessary
+for using Fudgit, but may be of interest to some people.
+
+
+A. Using the RSX (DPMI) Extender
+
+There is an alpha version of an EMX-compatible 386/DOS extender that
+uses the DPMI protocol to access 386 protected mode.  This is the only
+way to run Fudgit in a DOS box under Windows 3.x enhanced mode.  I
+have not tested this combination extensively so I cannot comment on
+its stability, but it does appear to work (although RSX was based on
+version 0.8e of EMX, so there may well be some minor problems).
+
+The RSX package has been publicly released in connection with DJGPP,
+the port of GCC to 386/DOS by DJ Delories, and can be found in the
+user contribution area of most major DJGPP archives.  In particular,
+it can be found at the following anonymous ftp sites:
+
+     omnigate.clarkson.edu: /pub/msdos/djgpp/pub
+     src.doc.ic.ac.uk:	    /packages/dos/djgpp/pub
+     ftp.uni-jena.de:	    /pub/msdos/djgpp
+
+as files dpmigcc1.txt (readme) and dpmigcc1.zip (full source and
+executables).  Only the file rsx.exe is needed (in addition to the
+termcap.dat file from emxrt.zip), and the usage is:
+
+     rsx \fudgit\fudgit.exe [args...]
+
+which would be easiest to put in fudgit.bat.  It is advisable to give
+the full pathname for fudgit.exe, so Fudgit will know where HOME is by
+default, and where to find itself when using the dynamic load
+facility.
+
+
+B. Using the Dynamic Load Facility
+
+One of the neatest, and potentially most useful, features of Fudgit is
+its ability to access external (ie. user-defined) functions by
+dynamically loading separately compiled object modules.  This feature
+is described in the reference manual under "install", although the
+description there has not (yet) been edited to reflect the operation
+when using EMX.  Basically, both the install and reinstall commands
+work as they should, including allowing "incremental" loading where
+external references in a dynamically loaded module can be resolved
+by other modules that are already loaded.
+
+In order to use this facility to access your own functions, you will
+need to study the code samples in "\fudgit\tools\*.*".	I have pre-
+compiled the two examples coded in C so that you can try them for
+yourself -- "cd" to the tools directory while in Fudgit and try
+loading "legnomia.ft" and "mymodule.ft" (look at the source code for
+those files to understand what is going on).
+
+You must use the EMX/GCC compiler to compile your modules, and
+generate .o object files (as opposed to .obj files).  The dynamic
+loader understands normal "ar" libraries of .o files as well.
+Although Fudgit has been compiled with version 0.8g of EMX/GCC, it
+should be okay to load object modules compiled with an earlier release
+of EMX/GCC, as long as you don't access low-level system calls (which
+you generally shouldn't do anyway).
+
+One small point: make sure you don't strip the symbol table (eg. using
+emxbind), either from fudgit.exe or from your object modules, or else
+you won't be able to load anything.  It should go without saying, but
+you never know!
+
+
+C. Recompiling Fudgit
+
+This section is only of interest to people who want to modify, extend,
+or generally improve Fudgit (or -gasp- fix bugs!), and will therefore
+need to obtain the sources and recompile.
+
+If you do want to recompile Fudgit, you will have to obtain the
+original sources elsewhere  -- for space reasons, I have only included
+context diffs to the original sources for version 2.31.  The diffs are
+all in the one file, "fudg_emx.dif", which can be applied via the
+standard GNU/Unix patch program to the original source tree for 2.31.
+The file "makefile.emx" is used to recompile the main body of the
+source code, but is not set up to build some of the requisite
+libraries, such as GNU readline and dld.  For these, it is easiest to
+do a make in those directories (src/readline, src/dld, src/dld/dl)
+separately before doing a "make -fmakefile.emx" in the main directory.
+
+One important point to note is that the final executable should be
+bound with the following EMX options: -ac and -p.  The first is
+necessary for dynamic loading (it makes data/stack areas executable),
+and the second is needed to allow system() calls to work under DOS
+(ie. to do directory listings, or spawn a shell).
+
+I obtained the sources from a Linux archive as fudgit-2.31.tar.z;
+quite a few Linux archive sites will have this file.  In particular,
+the following anonymous ftp sites definitely have it:
+
+     src.doc.ic.ac.uk: /packages/linux/tsx-11-mirror/sources/usr.bin
+     ftp.uu.net:       /systems/unix/linux/sources/usr.bin
+     ftp.luth.se:      /pub/linux/sources/usr.bin
+     cs.ubc.ca:        /mirror1/linux/sources/usr.bin
+     ftp.hrz.th-darmstadt.de: /pub/os/Linux/sources/usr.bin
+     wuarchive.wustl.edu:     /systems/linux/sources/usr.bin
+     isfs.kuis.kyoto-u.ac.jp: /Linux/mirror-tsx/sources/usr.bin
+
+Other sites can be found by using archie or gopher.
+
+One last point: please send improvements/bug-reports for Fudgit itself
+to the author, Martin-D. Lacasse (isaac@physics.mcgill.ca); only send
+bug-reports specifically for the EMX version to me.  Also note that I
+probably won't be able to maintain this port beyond September 1993, so
+if any kind (and capable) soul would like to take over responsibility,
+then you are most welcome to do so.
+
+Good luck, and happy hacking!
+
+		    -*-  END OF RELEASE NOTES  -*-
+
+----------------------------------------------------------------------
+Andrew Innes				Internet: aci10@eng.cam.ac.uk
+Engineering Department			      or: aci10@phx.cam.ac.uk
+Cambridge University			Telephone: +44 223 337087
+Mill Lane, Cambridge CB2 1RX, England.	Facsimile: +44 223 338076
+----------------------------------------------------------------------
+

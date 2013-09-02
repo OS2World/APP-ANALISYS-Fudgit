@@ -1,0 +1,4 @@
+# Install a C function returning the value of the
+# the Legendre nomial of degree n
+# Let's call the function legn internally
+install legnomial.o leg=legn(x, x)

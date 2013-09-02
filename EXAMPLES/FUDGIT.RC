@@ -1,0 +1,104 @@
+# An example of a user .fudgitrc file
+set method ls_reg
+set function str
+set parameters A 2
+unlock plotnum
+let plotnum = 0
+lock plotnum
+
+macro newp!lot 0
+	set output $Tmp
+	unlock plotnum
+	let plotnum = 0
+	lock plotnum
+stop
+
+macro ipl!ot  2
+   unlock plotnum
+   let plotnum = 0
+   lock plotnum
+   plot $1 $2
+stop
+
+# Plot for gnuplot 
+macro pl!ot 2
+	save vector $1 $2 $Tmp.$plotnum
+	if (plotnum == 0) then
+     	pm plot '$Tmp.$plotnum' 
+	else 
+     	pm replot '$Tmp.$plotnum' 
+	endif 
+	unlock plotnum
+	let plotnum++
+	lock plotnum
+stop
+
+# Plot for gnuplot with titles
+macro tpl!ot 3
+	save vector $1 $2 $Tmp.$plotnum
+	if (plotnum == 0) then
+     	pm plot '$Tmp.$plotnum' title '$3'
+	else 
+     	pm replot '$Tmp.$plotnum' title '$3'
+	endif 
+	unlock plotnum
+	let plotnum++
+	lock plotnum
+stop
+
+# Plot for gnuplot batch plots and titles
+macro tbpl!ot 3
+	save vector $1 $2 $Tmp.$plotnum
+	if (plotnum == 0) then
+    	let print "plot '$Tmp.$plotnum' title '$3'"
+	else 
+    	let print ", '$Tmp.$plotnum' title '$3'"
+	endif 
+	unlock plotnum
+	let plotnum++
+	lock plotnum
+stop
+
+macro bat!chplot 0
+	let print "\n" 
+	set output $Tmp.dummy
+	pmode load "$Tmp"
+	pmode pause 0  "Batch plotted"
+stop
+
+macro rgnu 2
+	save vector $1 $2 $Tmp.2
+	pmode replot '$Tmp.2' wi li
+stop
+
+macro pows 1
+	let i=1
+	let I = i++
+	fft $1 I
+	let $1_POW = $1_FT^2 + I_FT^2
+stop
+
+macro ml!og 1
+	let L$1 = ln($1)
+stop
+
+# General aliases
+alias pv show vector
+alias more !more
+alias cp !cp -i
+alias mv !mv -i
+alias rm !rm -i
+
+# Gnuplot aliases 
+alias rep pmode rep
+alias log pmode set log
+alias nolo!g pm set nolog
+alias xr pmode set xrange
+alias yr pmode set yrange
+alias zr pmode set zrange
+alias auto pmode set auto
+alias xt pmode set xlabel
+alias yt pmode set ylabel
+alias post pmode set size 0.7,1; set term post port 'Helvetica-Bold';\\
+                 set output
+alias fig pmode set term bfig; set output

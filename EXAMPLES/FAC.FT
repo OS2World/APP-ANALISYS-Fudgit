@@ -1,0 +1,17 @@
+# Print factorial of numbers from 0 to 120.
+cmode
+	func fac(x) {  # This `x' is a prototype: it does not exist.
+		if (x <= 0)  {
+		   return(1)
+		} else {
+		   return(x * fac(--x))
+		}
+	}
+    {
+   		auto x=1  # This `x' is a local scalar variable
+   		while (x<120) {
+	   		fac(x++)
+		}
+   }
+fmode
+

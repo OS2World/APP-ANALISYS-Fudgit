@@ -1,0 +1,16 @@
+# This is an example for loading
+# Install function myfunc as corr() and procedure myproc as inverse()
+# Prototypes are made from any name representing the proper type.
+install mymodule.o myproc:inverse(V, n) myfunc=corr(V, V, n)
+set data 24
+let x=1;X=x++
+let Y=sin(X)
+cmode
+	# Inverse order of vector X
+	inverse(X, data)
+	# Calculate correlation between X and Y
+	y=corr(X, Y, data)
+	# Print its value
+	"correlation: ", y
+fmode
+

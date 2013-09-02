@@ -1,0 +1,13 @@
+# This file shows how to load FORTRAN functions and
+# subroutines. Notice the trailing underscore.
+
+install mysubs.o myfunc_=varsum(x,y) mysub_:mysub(X,n)
+
+set data 12
+let x=100;X=x++
+echo Adding 12 to 23 using an external call...
+let varsum(12, 23)
+echo Making a vector = i + sin(i) using an extern call...
+let mysub(X,data)
+show vector X
+

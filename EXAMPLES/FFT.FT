@@ -1,0 +1,50 @@
+# Show how padding affects results on fft
+# Tell gnuplot our specifications
+pmode clear; set data style line; set nolog
+# Define a few macros for the sake of it
+macro dofft 2
+	# Append _FT to the name of transformed vectors.
+	fft $1 $2 $1_FT $2_FT
+	let POW$1 = ($1_FT^2 + $2_FT^2)
+stop
+macro doinvfft 2
+	# Append _FFT to the name of inverse tranformed vectors.
+	invfft $1 $2 $1_IFT $2_IFT
+	let POW$1 = ($1_IFT^2 + $2_IFT^2)
+stop
+# Take the next power of 2 of 700.
+set data 1024
+let n=0 ; N=n++
+let IM=0
+let x=0 ; X = (x++ * 2 * pi/data)
+# A will be created with 1024 so it will be
+# filled with zeros from 700 to 1024.
+let A=0
+set data 700
+let A=cos(100*X) + sin(100*X) + cos(10*X) + sin(10*X)
+# Go back to 1024 to do the fft.
+set data 1024
+echo Plotting function...
+echo Note that it is zero padded from 700 to 1024.
+gnu N A
+pause -1 "Hit return"
+# Do the Fourier transform using our user-defined macro.
+dofft A IM 
+# Only plot the first half of it.
+# Change the `data' constant into a variable.
+unlock data
+# Let the size of vectors be half for a while since real vectors
+# transform in symmetrical frequency functions (f(x) = f(-x)).
+let data/=2
+echo Plotting the Fourier transform...
+gnu N POWA
+pause -1 "Hit return"
+# Go back to original size. 
+let data*=2
+# Change the `data' variable back to a constant.
+lock data
+# Do the inverse Fourier transform using our user-defined macro.
+doinvfft A_FT IM_FT
+echo Plotting real function transformed back...
+gnu N A_FT_IFT
+
